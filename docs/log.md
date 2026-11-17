@@ -15,6 +15,7 @@ Hand-written decisions and verification notes, newest first.
   - `npm test`: 32 of 32, 6 new (to-do creation and fromAsk, start / done / reopen, can't do rules and secret scan, actions refused on the wrong kind, digest counts and flags, CLI flags).
   - In the interactive demo: For me with to-dos and Due today, Start (Doing, carry-on command), Mark done with a note (done box, Done list), Can't do (empty reason refused, reason shown), Make a to-do from an answered question, and the composer switching to New to-do. Phone width checked in a 390px frame: the five kinds fit on one row.
 - Not verified: the `/team-inbox:todo` skill run by a real Claude Code session against the live inbox, including loading a to-do into the session's task list.
+- Fixed after the push: the README's thread screenshot showed a loading bar. The page batched redraws through requestAnimationFrame, which headless Chrome's virtual clock does not always fire; one pending frame then swallowed every later redraw, so the page froze mid-load. `render()` now also schedules a 50 ms timer and runs on whichever fires first. Checked with 9 headless loads (3 runs at 3 time budgets): all complete, where before they varied. Real browsers were not affected in testing, but a throttled embedded frame could be.
 - Note for future screenshots: headless Chrome will not make a window narrower than about 500px, so a 390px `--window-size` crops the page. Check phone layouts inside a 390px iframe (as `phones.html` does).
 
 ## 2026-11-17 (local, Agent SDK research)
