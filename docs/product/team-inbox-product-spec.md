@@ -147,12 +147,17 @@ Blockers older than the team's threshold (default 1 working day) are highlighted
 | Export / backup | in | `/team-inbox:export` dumps the store to local JSON; page offers a download. |
 
 ## Visual direction
-"Sorting office": a dense, calm ledger of pigeonholes rather than a chat app.
-Cool blue-grey paper in light mode, slate in dark mode, postal-ink blue as the one accent (the rubber stamp).
-Semantic colours only where they carry meaning: red for blockers and overdue, green for resolved.
-Type: IBM Plex Sans Condensed for view titles and counts, IBM Plex Sans for text, IBM Plex Mono for metadata (ask codes, ages, repo and branch).
-Rows, not cards; age and status read at a glance; generous line height in threads.
-We refuse: purple gradients, glassmorphism, default shadcn look, cream-and-terracotta, emoji-heavy UI, chat bubbles.
+Changed 2026-11-17 at the owner's request ("make it look like an Apple product"); this replaces the earlier "sorting office" ledger direction.
+"Native app": the page should read like a first-party Mac and iPhone app, close to Mail and Reminders, not like a web dashboard.
+Light mode is a `#F5F5F7` ground with borderless white cards and hairline separators; dark mode is true black with `#1C1C1E` cards.
+One accent, system blue, for actions and selection.
+Semantic colours only where they carry meaning: red for blockers and overdue, orange for an answer waiting to be checked, green for resolved.
+Type: the system font first (San Francisco on Apple devices), Inter as the fallback elsewhere; rounded numerals for counts and stats; the system mono for ask codes, repo and branch.
+Shell: a translucent blurred toolbar, a source-list sidebar with coloured icon tiles on desktop, a five-item bottom tab bar on phones (Preferences moves behind the avatar).
+Controls: capsule buttons, filled fields with no borders, a segmented control for single choices, toggle chips for groups, a sheet for the composer (a bottom sheet on phones).
+Replies read as a message thread: your replies sit right in the accent colour, everyone else's sit left in grey.
+We refuse: purple gradients, default shadcn look, cream-and-terracotta, emoji-heavy UI, Apple's own logos, product names or SF Symbols (the icons are drawn for this page).
+Accessibility overrides fidelity: text colours use the darker accessible variants of the system palette, because white on system orange, green or bright blue fails contrast.
 Light and dark both designed, tokens on `:root`, phone width supported.
 
 ## Install (added 2026-11-17 on approval)

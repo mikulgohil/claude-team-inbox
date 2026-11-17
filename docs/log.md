@@ -2,6 +2,23 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, evening)
+- Summary: the inbox page is restyled to look like a native Apple app, at the owner's request. No data, rule or protocol change.
+- Files touched: `plugin/page/team-inbox.html` (whole stylesheet, plus markup for icons, sidebar, rows, thread, composer and welcome screen), `docs/product/team-inbox-product-spec.md` (Visual direction). The live page was republished (version 8).
+- Decisions:
+  - System font stack first, Inter as the web fallback; IBM Plex is gone. Body letter-spacing stays near zero because San Francisco already tracks itself; tightening it again made text cramped.
+  - Phone navigation is a fixed bottom tab bar with five items. Preferences is reached from the avatar at every width, so the bar stays within five.
+  - Replies render as message bubbles. This reverses the earlier "no chat bubbles" rule in the spec; the owner asked for the Apple look and a thread is where it reads most clearly.
+  - The composer is one `<form>` holding a title bar (Cancel, title, Send) and a scrolling body. Validation errors render at the top of the body and the body scrolls to them, because Send is no longer next to the last field.
+  - Icons are thirteen line icons drawn inline as SVG paths (`ICONS` in the page script). No SF Symbols and no Apple marks, which are Apple's property.
+  - Filled blue stays `#0071E3` in both themes: white text on the brighter dark-mode blue `#0A84FF` is 3.7:1 and fails AA.
+- Verified:
+  - Live page on claude.ai at desktop width, light theme: all six views, the ask detail and the composer, by screenshot; no console errors.
+  - Phone width (400px and 560px) and the dark theme through a local harness that loads the same file with a mock `window.claude` (seeded asks, replies and members), because the automation browser window would not resize. Not checked on a real phone.
+  - Fixed along the way: reply footer spacing, the add-group fields stacking full width, the search icon overlapping its placeholder, the members table wrapping mid-word on phones.
+- Follow-ups:
+  - Check the page once on a real iPhone (safe-area insets under the tab bar and the bottom sheet) during the pilot.
+
 ## 2026-11-17 (local, later)
 - Summary: the public home moves from the personal account to a GitHub organization, so the install command no longer carries a person's name.
 - Files touched: `README.md`, `plugin/.claude-plugin/plugin.json`, `plugin/page/team-inbox.html` (`MARKETPLACE`), `plugin/skills/setup/SKILL.md`, `docs/product/team-inbox-product-spec.md`. The live page was republished.
