@@ -6,6 +6,7 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "test": "node --test plugin/test/inbox.test.mjs plugin/test/hook.test.mjs",
-    "validate": "claude plugin validate ./plugin && claude plugin validate ."
+    "validate": "claude plugin validate ./plugin && claude plugin validate .",
+    "screenshots": "bash scripts/screenshots/shoot.sh"
   }
 }

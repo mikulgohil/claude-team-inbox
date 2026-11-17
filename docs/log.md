@@ -2,6 +2,18 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, late night)
+- Summary: a GitHub-ready README with screenshots, a script that regenerates them, and removal of client and company names before the repo goes public.
+- Files touched: `README.md` (rewritten), `docs/images/*.png` (8 screenshots), `scripts/screenshots/{build.cjs,shoot.sh}`, `package.json` (`screenshots` script), and name clean-up in `plugin/page/team-inbox.html`, `plugin/skills/setup/SKILL.md`, `plugin/test/inbox.test.mjs`, `docs/product/team-inbox-product-spec.md` and this log.
+- Decisions:
+  - Screenshots come from the real page file running against a mocked `window.claude` with fictional people and projects, never from the live inbox, so no real names, client projects or inbox links reach a public repo.
+  - The generator lives in the repo (`npm run screenshots`) so the images can be refreshed whenever the page changes, instead of drifting.
+  - Headless Chrome with `--virtual-time-budget`; animations are switched off in the demo build because the composer was otherwise captured mid fade-in.
+  - The hero uses a `<picture>` element so GitHub shows the dark screenshot to readers in dark mode.
+  - Example values that named a client project or the owner's employer were replaced with neutral ones (`storefront`, `acme-storefront`, "Web platform team"); the live artifact id was removed from this log.
+- Verified: `npm run screenshots` regenerates all 8 images; every image path and relative link in the README resolves; `npm test` 18 of 18 after the test fixture rename.
+- Not verified: how GitHub renders the README (badges, the mermaid diagram, the light and dark hero), because the repo is not pushed yet.
+
 ## 2026-11-17 (local, night)
 - Summary: the page moves from the Apple-style look to a Claude-style look, gains a Guide view, and gains four small page-only features. No change to the plugin, the helper CLI, the access rules or the data model.
 - Files touched: `plugin/page/team-inbox.html`, `README.md` (the inbox page section), `docs/product/team-inbox-product-spec.md` (Visual direction, and a new "Added after v1" section). The live page was republished (version 9).
@@ -60,7 +72,7 @@ Hand-written decisions and verification notes, newest first.
   - `plugin.json` has no `version`, so auto-update follows commits (a pinned version blocks updates; Claude Code docs, via research 2026-11-17).
   - No `curl | bash` installer: `claude plugin install team-inbox --marketplace mikulgohil/team-inbox --config inbox=<link>` already does everything (verified against `claude plugin install --help`, Claude Code 2.1.326).
   - Visual direction changed from "warm paper + vermillion" to cool blue-grey paper with postal-ink blue, because cream-plus-vermilion is a known generic AI look.
-- Verified on a live store (artifact `XXXX`, owner's own account):
+- Verified on a live store (the owner's private test artifact):
   - `data/users/me` resolves and the result prints the caller's id; join works entirely from Claude Code.
   - `out_dir` saves bare document bodies at `<out>/<collection path>/<doc_id>.json`; versions are printed in the tool result, not in the files.
   - `batch` with `file_path` entries commits atomically.
