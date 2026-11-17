@@ -129,7 +129,7 @@ The teammates, projects and asks in these screenshots are demo data.
 ### 1. Team lead: create the inbox (about 3 minutes, once per team)
 
 ```bash
-claude plugin install team-inbox --marketplace mikulgohil/team-inbox
+claude plugin install team-inbox --marketplace mikulgohil/claude-team-inbox
 ```
 
 Then, inside Claude Code:
@@ -148,7 +148,7 @@ Add `--demo` to start with three example asks you can remove later.
 The invite from setup contains this command with your inbox link already filled in:
 
 ```bash
-claude plugin install team-inbox --marketplace mikulgohil/team-inbox --config inbox=https://claude.ai/artifact/XXXX
+claude plugin install team-inbox --marketplace mikulgohil/claude-team-inbox --config inbox=https://claude.ai/artifact/XXXX
 ```
 
 It adds the marketplace, installs the plugin for every project, and connects it to your inbox.
@@ -161,12 +161,12 @@ The page's Team view shows the same command with a copy button.
 Inside Claude Code or the Desktop Code tab:
 
 ```
-/plugin marketplace add mikulgohil/team-inbox
+/plugin marketplace add mikulgohil/claude-team-inbox
 /plugin install team-inbox@team-inbox
 /team-inbox:join https://claude.ai/artifact/XXXX
 ```
 
-Or just tell Claude: "Install Team Inbox from mikulgohil/team-inbox and join https://claude.ai/artifact/XXXX".
+Or just tell Claude: "Install Team Inbox from mikulgohil/claude-team-inbox and join https://claude.ai/artifact/XXXX".
 
 </details>
 
@@ -179,7 +179,7 @@ Add this to your organization's managed settings, and the plugin installs for ev
 {
   "extraKnownMarketplaces": {
     "team-inbox": {
-      "source": { "source": "github", "repo": "mikulgohil/team-inbox" },
+      "source": { "source": "github", "repo": "mikulgohil/claude-team-inbox" },
       "autoUpdate": true
     }
   },

@@ -2,6 +2,13 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, repo rename)
+- Summary: the GitHub repo is renamed from `mikulgohil/team-inbox` to `mikulgohil/claude-team-inbox` at the owner's request. Install is now `claude plugin install team-inbox --marketplace mikulgohil/claude-team-inbox --config inbox=<link>`.
+- Files touched: `README.md`, `plugin/.claude-plugin/plugin.json`, `plugin/page/team-inbox.html` (`MARKETPLACE`), `plugin/skills/setup/SKILL.md`, `docs/product/team-inbox-product-spec.md`, `docs/images/*.png`. The live page was republished.
+- Decisions:
+  - Only the repo name changes. The plugin name, the marketplace name (`team-inbox@team-inbox`) and the `/team-inbox:*` commands stay, so commands stay short and nothing already installed breaks.
+  - GitHub redirects the old repo address; whether Claude Code's marketplace fetch follows it is not verified, so every command now uses the new name.
+
 ## 2026-11-17 (local, after first push)
 - Summary: the signed-in user in the README screenshots is now the author, Mikul Gohil, at his request; teammates, team name and projects stay fictional.
 - Files touched: `scripts/screenshots/build.cjs`, `scripts/screenshots/shoot.sh`, `docs/images/*.png`, `README.md`.

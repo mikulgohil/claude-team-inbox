@@ -4,8 +4,8 @@
   "author": {
     "name": "Mikul Gohil"
   },
-  "homepage": "https://github.com/mikulgohil/team-inbox",
-  "repository": "https://github.com/mikulgohil/team-inbox",
+  "homepage": "https://github.com/mikulgohil/claude-team-inbox",
+  "repository": "https://github.com/mikulgohil/claude-team-inbox",
   "license": "MIT",
   "keywords": ["team", "inbox", "async", "blockers", "handoff", "artifacts"],
   "userConfig": {
