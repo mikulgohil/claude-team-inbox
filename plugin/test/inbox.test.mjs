@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildAsk, buildReply, buildStatus, scanText, digest, formatDigest, unwrap, newCode, timeId } from '../bin/inbox.mjs';
+import { buildAsk, buildReply, buildStatus, buildEdit, scanText, digest, formatDigest, isOverdue, unwrap, newCode, timeId, TEMPLATES, KINDS } from '../bin/inbox.mjs';
 
 const CLI = fileURLToPath(new URL('../bin/inbox.mjs', import.meta.url));
 const MIKUL = 'u_mikul0000000000000000a';
@@ -174,4 +174,120 @@ test('CLI end to end: prepare-ask, prepare-reply, digest over an out_dir layout'
   const bad = spawnSync('node', [CLI, 'prepare-ask', '--draft', d, '--out', join(dir, 'w')], { encoding: 'utf8' });
   assert.equal(bad.status, 1);
   assert.match(bad.stderr, /member id/);
+});
+
+// ---------------------------------------------------------------- v1.1: nudge, follow, edit, templates, escalation
+
+test('a new ask starts with no followers and no nudges', () => {
+  const { ask } = buildAsk(draft(), MIKUL, NOW, 'K3F9X2');
+  assert.deepEqual([ask.followers, ask.nudgedAt, ask.nudges], [[], null, 0]);
+});
+
+test('nudge: asker or follower only, active asks only, with a cooldown', () => {
+  const { ask } = buildAsk(draft(), MIKUL, NOW, 'K3F9X2');
+  const n1 = buildStatus(ask, 'nudge', MIKUL, {}, '2026-11-18T09:00:00.000Z');
+  assert.deepEqual([n1.patch.nudgedAt, n1.patch.nudgedBy, n1.patch.nudges, n1.event.type], ['2026-11-18T09:00:00.000Z', MIKUL, 1, 'nudged']);
+  assert.equal(n1.patch.lastActivityBy, MIKUL, 'a nudge is activity, so the assignee sees it as new');
+  const nudged = { ...ask, ...n1.patch };
+  assert.throws(() => buildStatus(nudged, 'nudge', MIKUL, {}, '2026-11-18T10:00:00.000Z'), /at least 4 hours/);
+  assert.equal(buildStatus(nudged, 'nudge', MIKUL, {}, '2026-11-18T14:00:00.000Z').patch.nudges, 2);
+  assert.throws(() => buildStatus(ask, 'nudge', ALEX, {}, NOW), /asker or someone following/);
+  assert.equal(buildStatus({ ...ask, followers: [ALEX] }, 'nudge', ALEX, {}, NOW).patch.nudgedBy, ALEX);
+  assert.throws(() => buildStatus({ ...ask, status: 'answered' }, 'nudge', MIKUL, {}, NOW), /open or claimed/);
+});
+
+test('follow and unfollow change followers without counting as activity', () => {
+  const { ask } = buildAsk(draft(), MIKUL, NOW, 'K3F9X2');
+  const f = buildStatus(ask, 'follow', ALEX, {}, NOW);
+  assert.deepEqual(f.patch.followers, [ALEX]);
+  assert.equal(f.patch.lastActivityAt, undefined);
+  assert.equal(f.event.type, 'followed');
+  const followed = { ...ask, ...f.patch };
+  assert.throws(() => buildStatus(followed, 'follow', ALEX, {}, NOW), /already follow/);
+  assert.throws(() => buildStatus(ask, 'follow', MIKUL, {}, NOW), /already get its updates/);
+  assert.deepEqual(buildStatus(followed, 'unfollow', ALEX, {}, NOW).patch.followers, []);
+  assert.throws(() => buildStatus(ask, 'unfollow', ALEX, {}, NOW), /do not follow/);
+});
+
+test('edit: asker only, changed fields only, recipients refused, secrets refused', () => {
+  const { ask } = buildAsk(draft(), MIKUL, NOW, 'K3F9X2');
+  const e = buildEdit(ask, { title: ask.title, body: 'Which wins on mobile? Tokens are in v2.3.', neededBy: '2026-11-20' }, MIKUL, '2026-11-18T09:00:00.000Z');
+  assert.deepEqual(Object.keys(e.patch).sort(), ['body', 'editedAt', 'lastActivityAt', 'lastActivityBy', 'neededBy', 'updatedAt']);
+  assert.equal(e.event.type, 'edited');
+  assert.equal(e.event.detail, 'body, neededBy');
+  assert.throws(() => buildEdit(ask, { title: 'Mine now' }, PRIYA), /Only the person who raised/);
+  assert.throws(() => buildEdit(ask, { title: ask.title }, MIKUL), /Nothing changed/);
+  assert.throws(() => buildEdit(ask, { to: [ALEX] }, MIKUL), /reassign/);
+  assert.throws(() => buildEdit({ ...ask, status: 'resolved' }, { body: 'x' }, MIKUL), /reopen it/);
+  assert.throws(() => buildEdit(ask, { body: `key sk-ant-api03-${'b'.repeat(40)}` }, MIKUL), /secret/);
+  assert.throws(() => buildEdit(ask, { kind: 'urgent' }, MIKUL), /kind must be one of/);
+  assert.equal(buildEdit(ask, { neededBy: null, kind: 'question' }, MIKUL).event.detail, 'kind');
+});
+
+test('every kind has a template with headings ending in a colon', () => {
+  for (const k of KINDS) assert.match(TEMPLATES[k], /^[^\n]+:\n\n[^\n]+:\n\n[^\n]+:$/);
+});
+
+test('overdue: past needed-by, or a blocker older than blockerHours', () => {
+  const now = new Date('2026-11-18T12:00:00.000Z');
+  const a = { status: 'open', kind: 'blocker', createdAt: '2026-11-17T10:00:00.000Z' };
+  assert.equal(isOverdue(a, now, 24), true);
+  assert.equal(isOverdue(a, now, 48), false);
+  assert.equal(isOverdue({ ...a, kind: 'question' }, now, 24), false);
+  assert.equal(isOverdue({ ...a, kind: 'question', neededBy: '2026-11-17' }, now, 24), true);
+  assert.equal(isOverdue({ ...a, status: 'answered' }, now, 24), false);
+});
+
+test('digest: overdue and nudged asks come first, nudges cut through snoozes, followers get updates', () => {
+  const now = new Date('2026-11-18T12:00:00.000Z');
+  const base = { status: 'open', kind: 'question', toIds: [PRIYA], participants: [], followers: [], createdAt: '2026-11-18T08:00:00.000Z', lastActivityAt: '2026-11-18T08:00:00.000Z', lastActivityBy: ALEX };
+  const asks = [
+    { ...base, code: 'NEWB', kind: 'blocker', title: 'Fresh blocker', fromId: ALEX },
+    { ...base, code: 'OLDB', kind: 'blocker', title: 'Old blocker', fromId: ALEX, createdAt: '2026-11-16T08:00:00.000Z' },
+    { ...base, code: 'NUDG', title: 'Snoozed but nudged', fromId: ALEX, nudgedAt: '2026-11-18T11:00:00.000Z', nudgedBy: ALEX, nudges: 2 },
+    { ...base, code: 'FOLW', title: 'Followed and answered', fromId: ALEX, toIds: [MIKUL], status: 'resolved', followers: [PRIYA], lastActivityBy: MIKUL, lastActivityAt: '2026-11-18T10:00:00.000Z' },
+    { ...base, code: 'SEEN', title: 'Followed, already seen', fromId: ALEX, toIds: [MIKUL], status: 'answered', followers: [PRIYA], lastActivityBy: MIKUL, lastActivityAt: '2026-11-18T09:00:00.000Z' },
+    { ...base, code: 'WAIT', kind: 'blocker', title: 'My old blocker', fromId: PRIYA, toIds: [ALEX], createdAt: '2026-11-16T08:00:00.000Z', lastActivityBy: PRIYA },
+  ];
+  const state = { snoozed: { NUDG: '2026-11-25' }, lastSeen: { NUDG: '2026-11-18T09:00:00.000Z', SEEN: '2026-11-18T09:30:00.000Z' } };
+  const d = digest({ asks, me: PRIYA, groups: [], state, blockerHours: 24, now });
+  assert.deepEqual(d.forYou.map((a) => a.code), ['OLDB', 'NUDG', 'NEWB']);
+  assert.deepEqual(d.following.map((a) => a.code), ['FOLW']);
+  assert.deepEqual(d.flags.NUDG, ['NUDGED x2']);
+  const text = formatDigest(d);
+  assert.match(text, /for_you: 3 \(2 blocker, 1 overdue, 1 nudged\)/);
+  assert.match(text, /\[BLOCKER\] \[OVERDUE\] OLDB/);
+  assert.match(text, /\[NUDGED x2\] NUDG/);
+  assert.match(text, /following_updates: 1\n  FOLW "Followed and answered" resolved by/);
+  assert.match(text, /waiting_on_others: 1 \(1 overdue\)\n  \[OVERDUE\] WAIT "My old blocker" waiting 2d, never nudged/);
+  // Your own nudge is not news to you.
+  const own = digest({ asks: [{ ...asks[2], nudgedBy: PRIYA }], me: PRIYA, state, now });
+  assert.deepEqual(own.forYou.map((a) => a.code), [], 'still snoozed, because the nudge was your own');
+});
+
+test('CLI: prepare-edit, nudge through prepare-status, template, and digest reads blockerHours from config', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'team-inbox-v11-'));
+  const { ask } = buildAsk(draft({ kind: 'question' }), MIKUL, NOW, 'K3F9X2');
+  const askFile = join(dir, 'ask.json');
+  writeFileSync(askFile, JSON.stringify({ id: 'K3F9X2', version: 4, data: ask }));
+  writeFileSync(join(dir, 'edit.json'), JSON.stringify({ title: 'Hero banner: which CTA set wins on mobile?' }));
+  const ed = JSON.parse(execFileSync('node', [CLI, 'prepare-edit', '--ask', askFile, '--draft', join(dir, 'edit.json'), '--me', MIKUL, '--out', join(dir, 'w')], { encoding: 'utf8' }));
+  assert.equal(ed.changed, 'title');
+  assert.match(ed.writes[0].if_version, /^PIN/);
+  const nu = JSON.parse(execFileSync('node', [CLI, 'prepare-status', '--ask', askFile, '--action', 'nudge', '--me', MIKUL, '--out', join(dir, 'w')], { encoding: 'utf8' }));
+  assert.equal(nu.statusAfter, 'open', 'status is reported even when the action does not change it');
+  assert.equal(execFileSync('node', [CLI, 'template', '--kind', 'blocker'], { encoding: 'utf8' }).trim(), TEMPLATES.blocker);
+  const bad = spawnSync('node', [CLI, 'prepare-edit', '--ask', askFile, '--draft', join(dir, 'edit.json'), '--me', PRIYA, '--out', join(dir, 'w')], { encoding: 'utf8' });
+  assert.equal(bad.status, 1);
+
+  const store = join(dir, 'store');
+  mkdirSync(join(store, 'asks'), { recursive: true });
+  mkdirSync(join(store, 'config'), { recursive: true });
+  const old = { ...ask, kind: 'blocker', createdAt: new Date(Date.now() - 30 * 3_600_000).toISOString() };
+  writeFileSync(join(store, 'asks', 'K3F9X2.json'), JSON.stringify(old));
+  writeFileSync(join(store, 'config', 'app.json'), JSON.stringify({ blockerHours: 48 }));
+  const calm = execFileSync('node', [CLI, 'digest', '--dir', store, '--me', PRIYA, '--groups', ''], { encoding: 'utf8' });
+  assert.doesNotMatch(calm, /OVERDUE/, '30h is not overdue when the inbox allows 48h');
+  const strict = execFileSync('node', [CLI, 'digest', '--dir', store, '--me', PRIYA, '--groups', '', '--blocker-hours', '24'], { encoding: 'utf8' });
+  assert.match(strict, /\[BLOCKER\] \[OVERDUE\] K3F9X2/);
 });

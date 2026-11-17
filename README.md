@@ -72,7 +72,11 @@ People without Claude Code open can read and answer on the page itself, in a bro
 | Feature | What it does |
 |---|---|
 | **Asks with context** | Questions, blockers, review requests and FYIs, sent to people or groups. From Claude Code each ask carries the repo, branch and files you were in. |
-| **Session-start check** | Once a day by default, Claude opens with one line about what is waiting for you, and says nothing when nothing is. |
+| **Templates** | Each kind has a short structure (what is blocked, what you tried, what would unblock you). Claude fills it from your work; on the page it is one click. |
+| **Nudge and escalation** | Blockers past the team's time limit and asks past their needed-by date are marked Overdue and move to the top. The asker can Nudge once every 4 hours, which brings the ask back even if it was snoozed. |
+| **Me too** | Need the same answer? Follow someone else's ask instead of asking again. You get its replies and resolution in your own session check, and you can nudge it. |
+| **Edit your ask** | Fix the wording, kind, date or links after sending; everyone on the ask sees it as updated. |
+| **Session-start check** | Once a day by default, Claude opens with one line about what is waiting for you, overdue and nudged asks first, and says nothing when nothing is. |
 | **Groups and claiming** | Send to a group when anyone in it could answer. The first person to claim it owns it. |
 | **Answers you can find** | Accepted answers move to a searchable Answers view. While you type a new ask, the page shows related asks that may already hold the answer. |
 | **A shared page for everyone** | Views for what is waiting for you, what you are waiting on, everything open, answers and the team, plus a built-in Guide for new teammates. |
@@ -197,10 +201,13 @@ People still run `/team-inbox:join <link>` once, because the link is your team's
 
 | Command | What it does |
 |---|---|
-| `/team-inbox:ask @design which CTA wins on mobile?` | Files an ask to a person or group with your repo, branch and files attached. You see the draft before it is sent. |
+| `/team-inbox:ask @design which CTA wins on mobile?` | Files an ask to a person or group with your repo, branch and files attached, filling the kind's template from your work. You see the draft before it is sent. |
+| `/team-inbox:ask edit K3F9X2` | Changes the title, details, kind, date or links of an ask you raised. |
 | `/team-inbox:inbox` | What is waiting for you, replies on your asks, and what you are waiting on. Add an ask code to open one thread. |
 | `/team-inbox:reply K3F9X2` | Answers an ask, or adds a follow-up to your own. Claude can draft from the code in front of you; you approve the text. |
 | `/team-inbox:resolve K3F9X2` | Accepts an answer, or claims, reopens, reassigns or cancels an ask. |
+| `/team-inbox:resolve K3F9X2 nudge` | Chases an ask that is taking too long. Once every 4 hours. |
+| `/team-inbox:resolve K3F9X2 follow` | "Me too": follow someone else's ask and hear when it is answered. `unfollow` stops. |
 | `/team-inbox:search timezone` | Looks through resolved asks before you ask again. |
 | `/team-inbox:export` | Backs the whole inbox up to local JSON files. |
 
@@ -222,14 +229,14 @@ Change it with `/plugin configure team-inbox@team-inbox`: `first-of-day` (the de
 | View | Shows |
 |---|---|
 | **For me** | Asks assigned to you, and unclaimed asks in your groups. Blockers first. |
-| **Waiting on others** | Asks you raised that are not resolved. Answered ones sit at the top. |
+| **Waiting on others** | Asks you raised or follow that are not resolved. Answered ones sit at the top. |
 | **All open** | Everything open across the team, with search and filters. |
 | **Answers** | Resolved asks and their accepted answers, searchable. |
 | **Team** | Members, availability, answer-time stats and the invite command. |
 | **Preferences** | Your availability and groups. Owners also get inbox settings, groups, backup and archiving. |
 | **Guide** | How Team Inbox works, for new teammates. |
 
-On an ask you can reply, attach screenshots, accept an answer, claim, snooze, reassign, reopen or cancel, copy the command to continue in Claude Code, and see the full history of who changed what.
+On an ask you can reply, attach screenshots, accept an answer, claim, snooze, reassign, reopen or cancel, nudge it, press Me too, edit your own, copy the command to continue in Claude Code, and see the full history of who changed what.
 
 Keyboard shortcuts: <kbd>N</kbd> new ask, <kbd>/</kbd> search, <kbd>1</kbd> to <kbd>5</kbd> switch views, <kbd>?</kbd> open the Guide.
 

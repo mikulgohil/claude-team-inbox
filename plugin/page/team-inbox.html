@@ -140,6 +140,8 @@ nav.rail { display: flex; flex-direction: column; gap: 2px; position: sticky; to
 .rail hr { border: 0; border-top: 1px solid var(--line); margin: 10px 10px; }
 main { min-width: 0; display: flex; flex-direction: column; gap: 16px; outline: none; }
 main > div:empty { display: none; }
+/* main takes focus on every view change so screen readers start there; it is not a control, so no ring. */
+main:focus, main:focus-visible { outline: none; }
 #banners { display: flex; flex-direction: column; gap: 10px; }
 @media (max-width: 760px) {
   .frame { grid-template-columns: minmax(0, 1fr); gap: 0; padding-block: 18px calc(88px + env(safe-area-inset-bottom, 0px)); }
@@ -200,6 +202,12 @@ main > div:empty { display: none; }
 .tag-block { background: var(--red-tint); color: var(--red); }
 .tag-kind { background: var(--fill); color: var(--text-2); }
 .tag-demo { background: var(--sky-tint); color: var(--sky); }
+.tag-nudge { background: var(--amber-tint); color: var(--amber); }
+.tag-late { background: transparent; color: var(--red); box-shadow: inset 0 0 0 1px currentColor; }
+.field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.field-head label span { font-weight: 500; font-size: 13.5px; }
+.field-head .linkbtn { font-size: 13px; padding: 0; }
+.note { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--fill); font-size: 14px; color: var(--text-2); }
 
 /* states */
 .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 56px 24px; border: 1px dashed var(--line-2); border-radius: 14px; color: var(--text-2); }
@@ -423,6 +431,14 @@ const SECRET_PATTERNS = [
 const KIND = { blocker: 'Blocker', question: 'Question', review: 'Review', fyi: 'FYI' };
 const STATUS = { open: 'Open', claimed: 'Claimed', answered: 'Answered', resolved: 'Resolved', cancelled: 'Cancelled' };
 const ACTIVE = ['open', 'claimed'];
+// Keep TEMPLATES and NUDGE_COOLDOWN_HOURS in sync with plugin/bin/inbox.mjs.
+const TEMPLATES = {
+  blocker: 'What is blocked:\n\nWhat I tried:\n\nWhat would unblock me:',
+  question: 'Context:\n\nQuestion:\n\nA good answer looks like:',
+  review: 'What to review (link):\n\nWhat feedback I need:\n\nOut of scope:',
+  fyi: 'What changed:\n\nWho it affects:\n\nAnything to do:',
+};
+const NUDGE_COOLDOWN_HOURS = 4;
 const VIEWS = { 'for-me': 'For me', waiting: 'Waiting on others', open: 'All open', answers: 'Answers', team: 'Team', prefs: 'Preferences', guide: 'Guide' };
 // Sidebar icon and the short label used by the phone tab bar.
 const NAV = { 'for-me': ['tray', 'For me'], waiting: ['clock', 'Waiting'], open: ['list', 'Open'], answers: ['check', 'Answers'], team: ['people', 'Team'], prefs: ['sliders', 'Preferences'], guide: ['book', 'Guide'] };
@@ -497,6 +513,8 @@ const today = () => new Date().toLocaleDateString('en-CA');
 function newCode(n = 6) { const a = new Uint32Array(n); crypto.getRandomValues(a); return [...a].map((x) => ALPHA[x % ALPHA.length]).join(''); }
 const timeId = (iso) => `${iso.replace(/[-:.]/g, '')}-${newCode(4)}`;
 const uniq = (xs) => [...new Set(xs.filter(Boolean))];
+// "just now" or "3h ago", for sentences.
+const since = (iso) => { const t = age(iso); return t === 'now' ? 'just now' : `${t} ago`; };
 function age(iso) {
   const ms = Date.now() - new Date(iso);
   if (!Number.isFinite(ms) || ms < 60_000) return 'now';
@@ -565,15 +583,24 @@ const groupName = (slug) => S.groups.find((g) => g.id === slug)?.name || slug;
 
 // ------------------------------------------------------------------ derived lists
 const myGroups = () => S.members.get(S.me?.id)?.groups ?? [];
-const isSnoozed = (a) => { const d = S.state?.snoozed?.[a.code]; return Boolean(d && d > today()); };
-const overdue = (a) => Boolean(a.neededBy && a.neededBy < today() && ACTIVE.includes(a.status));
-const byPriority = (x, y) => (x.kind === 'blocker' ? 0 : 1) - (y.kind === 'blocker' ? 0 : 1) || (overdue(y) - overdue(x)) || String(x.createdAt).localeCompare(String(y.createdAt));
+// Same rules as digest() in plugin/bin/inbox.mjs, so the page and the session check agree.
+const blockerHours = () => Number(S.config?.blockerHours) || 24;
+const pastDue = (a) => Boolean(a.neededBy && a.neededBy < today() && ACTIVE.includes(a.status));
+const overdue = (a) => pastDue(a) || (ACTIVE.includes(a.status) && a.kind === 'blocker' && Date.now() - new Date(a.createdAt) > blockerHours() * 3_600_000);
+const nudgedUnseen = (a) => { const seen = S.state?.lastSeen?.[a.code]; return Boolean(a.nudgedAt && a.nudgedBy !== S.me?.id && (!seen || String(a.nudgedAt) > String(seen))); };
+const nudgedRecently = (a) => Boolean(a.nudgedAt && ACTIVE.includes(a.status) && Date.now() - new Date(a.nudgedAt) < 72 * 3_600_000);
+const hoursSinceNudge = (a) => (a.nudgedAt ? (Date.now() - new Date(a.nudgedAt)) / 3_600_000 : Infinity);
+const following = (a) => (a.followers ?? []).includes(S.me?.id);
+// A nudge brings a snoozed ask back: that is what a nudge is for.
+const isSnoozed = (a) => { const d = S.state?.snoozed?.[a.code]; return Boolean(d && d > today()) && !nudgedUnseen(a); };
+const urgency = (a) => (nudgedUnseen(a) || overdue(a) ? 0 : a.kind === 'blocker' ? 1 : 2);
+const byPriority = (x, y) => urgency(x) - urgency(y) || String(x.createdAt).localeCompare(String(y.createdAt));
 function forMe() {
   const me = S.me.id, g = myGroups();
   return S.asks.filter((a) => ACTIVE.includes(a.status) && a.fromId !== me && !isSnoozed(a)
     && ((a.toIds ?? []).includes(me) || (a.status === 'open' && !(a.toIds ?? []).length && a.toGroup && g.includes(a.toGroup)))).sort(byPriority);
 }
-const waiting = () => S.asks.filter((a) => a.fromId === S.me.id && ['open', 'claimed', 'answered'].includes(a.status))
+const waiting = () => S.asks.filter((a) => (a.fromId === S.me.id || following(a)) && ['open', 'claimed', 'answered'].includes(a.status))
   .sort((x, y) => (x.status === 'answered' ? 0 : 1) - (y.status === 'answered' ? 0 : 1) || byPriority(x, y));
 const allOpen = () => S.asks.filter((a) => ['open', 'claimed', 'answered'].includes(a.status));
 const answers = () => S.asks.filter((a) => a.status === 'resolved').sort((x, y) => String(y.resolvedAt ?? y.updatedAt).localeCompare(String(x.resolvedAt ?? x.updatedAt)));
@@ -741,7 +768,7 @@ async function renderMain() {
 // ------------------------------------------------------------------ list views
 const LIST_COPY = {
   'for-me': ['For me', 'Asks assigned to you or waiting in your groups. Blockers first.', ['Nothing needs you', 'Asks assigned to you or your groups show up here.', 'tray']],
-  waiting: ['Waiting on others', 'Asks you raised that are not resolved. Answered ones are at the top for you to check.', ['You have no open asks', 'When your Claude gets blocked on a teammate, it can file one. You can also use New ask.', 'clock']],
+  waiting: ['Waiting on others', 'Asks you raised or follow that are not resolved. Answered ones are at the top for you to check.', ['You have no open asks', 'When your Claude gets blocked on a teammate, it can file one. You can also use New ask, or follow someone else\'s ask with "Me too".', 'clock']],
   open: ['All open', 'Everything open across the team.', ['No open asks across the team', 'New asks from anyone on the team appear here.', 'list']],
   answers: ['Answers', 'Resolved asks with their accepted answers. Search here before you ask.', ['No answers yet', 'Resolved asks land here and become searchable.', 'check']],
 };
@@ -802,12 +829,16 @@ function toText(ps, a) {
   return [names.join(', '), a.toGroup ? groupName(a.toGroup) : ''].filter(Boolean).join(' · ');
 }
 function askRow(a, ps, showUnread) {
-  const meta = [`${nameOf(ps, a.fromId)} → ${toText(ps, a)}`, a.project, a.neededBy ? `needed by ${a.neededBy}` : ''].filter(Boolean).join(' · ');
+  const fans = (a.followers ?? []).length;
+  const meta = [`${nameOf(ps, a.fromId)} → ${toText(ps, a)}`, a.project, a.neededBy ? `needed by ${a.neededBy}` : '', fans ? `${fans} following` : ''].filter(Boolean).join(' · ');
   return h('a', { class: `row kind-${a.kind}${overdue(a) ? ' overdue' : ''}`, href: `#ask-${a.code}` },
     h('span', { class: 'lead' }, showUnread && unread(a) ? h('span', { class: 'dot', role: 'img', title: 'New activity', 'aria-label': 'New activity' }) : null),
     h('span', { class: 'row-main' },
       h('span', { class: 'row-title' },
         a.kind === 'blocker' ? h('span', { class: 'tag tag-block', text: 'Blocker' }) : a.kind !== 'question' ? h('span', { class: 'tag tag-kind', text: KIND[a.kind] }) : null,
+        nudgedRecently(a) ? h('span', { class: 'tag tag-nudge', title: `Nudged ${since(a.nudgedAt)}`, text: 'Nudged' }) : null,
+        overdue(a) ? h('span', { class: 'tag tag-late', text: 'Overdue' }) : null,
+        following(a) ? h('span', { class: 'tag tag-kind', text: 'Following' }) : null,
         a.demo ? h('span', { class: 'tag tag-demo', text: 'Example' }) : null,
         h('span', { class: 't', text: a.title })),
       h('span', { class: 'row-meta' }, h('span', { class: 'mono', text: a.code }), ` · ${meta}`)),
@@ -843,7 +874,7 @@ function renderDetail(main, seq, banner) {
   });
   fill(parts.banners, ...banner);
   const d = S.detail;
-  people([a.fromId, ...(a.toIds ?? []), a.claimedBy, a.answer?.authorId, ...d.replies.map((r) => r.authorId), ...d.events.map((e) => e.actorId)]).then((ps) => {
+  people([a.fromId, ...(a.toIds ?? []), ...(a.followers ?? []), a.nudgedBy, a.claimedBy, a.answer?.authorId, ...d.replies.map((r) => r.authorId), ...d.events.map((e) => e.actorId)]).then((ps) => {
     if (seq !== S.renderSeq) return;
     fill(parts.head, ...detailHead(a, ps));
     fill(parts.thread, ...threadNodes(a, ps));
@@ -859,13 +890,18 @@ function detailHead(a, ps) {
   return [
     h('div', { class: 'dhead' }, h('span', { class: 'mono muted', text: a.code }),
       a.kind === 'blocker' ? h('span', { class: 'tag tag-block', text: 'Blocker' }) : h('span', { class: 'tag tag-kind', text: KIND[a.kind] ?? a.kind }),
-      statusChip(a), a.demo ? h('span', { class: 'tag tag-demo', text: 'Example' }) : null, isSnoozed(a) ? h('span', { class: 'chip', text: `Snoozed to ${S.state.snoozed[a.code]}` }) : null),
+      statusChip(a),
+      overdue(a) ? h('span', { class: 'tag tag-late', text: 'Overdue' }) : null,
+      a.nudgedAt && ACTIVE.includes(a.status) ? h('span', { class: 'tag tag-nudge', text: `Nudged${a.nudges > 1 ? ` ×${a.nudges}` : ''} by ${a.nudgedBy === S.me.id ? 'you' : nameOf(ps, a.nudgedBy)}, ${since(a.nudgedAt)}` }) : null,
+      a.demo ? h('span', { class: 'tag tag-demo', text: 'Example' }) : null, isSnoozed(a) ? h('span', { class: 'chip', text: `Snoozed to ${S.state.snoozed[a.code]}` }) : null,
+      a.editedAt ? h('span', { class: 'muted', title: `Edited ${fmt(a.editedAt)}`, text: 'edited' }) : null),
     h('h1', { class: 'dtitle', text: a.title }),
     h('dl', { class: 'meta' },
       h('dt', { text: 'From' }), h('dd', null, person(ps, a.fromId), h('span', { class: 'muted', text: `${fmt(a.createdAt)} · ${age(a.createdAt)} ago` })),
       h('dt', { text: 'To' }), h('dd', null, to, a.toGroup && (a.toIds ?? []).length ? h('span', { class: 'muted', text: `group ${groupName(a.toGroup)}` }) : null),
       a.project ? [h('dt', { text: 'Project' }), h('dd', { text: a.project })] : null,
-      a.neededBy ? [h('dt', { text: 'Needed by' }), h('dd', { class: overdue(a) ? 'overdue' : '', text: `${a.neededBy}${overdue(a) ? ' (overdue)' : ''}` })] : null,
+      a.neededBy ? [h('dt', { text: 'Needed by' }), h('dd', { class: pastDue(a) ? 'overdue' : '', text: `${a.neededBy}${pastDue(a) ? ' (overdue)' : ''}` })] : null,
+      (a.followers ?? []).length ? [h('dt', { text: 'Following' }), h('dd', null, a.followers.map((id) => person(ps, id)))] : null,
       links.length ? [h('dt', { text: 'Links' }), h('dd', null, links.map((l) => h('div', null, h('a', { href: l, target: '_blank', rel: 'noopener noreferrer', text: l }))))] : null),
     a.body ? h('div', { class: 'body' }, rich(a.body)) : h('p', { class: 'muted', text: 'No details given.' }),
     ctxLines.length ? h('pre', { class: 'ctx', 'aria-label': 'Context captured by Claude', text: ctxLines.join('\n') }) : null,
@@ -900,7 +936,7 @@ function threadNodes(a, ps) {
 function historyNode(ps) {
   const ev = S.detail.events;
   if (!ev.length) return null;
-  const label = { created: 'raised this ask', claimed: 'claimed it', answered: 'answered', reopened: 'reopened it', resolved: 'resolved it', cancelled: 'cancelled it', reassigned: 'reassigned it', edited: 'edited it' };
+  const label = { created: 'raised this ask', claimed: 'claimed it', answered: 'answered', reopened: 'reopened it', resolved: 'resolved it', cancelled: 'cancelled it', reassigned: 'reassigned it', edited: 'edited it', nudged: 'nudged it', followed: 'followed it', unfollowed: 'stopped following it' };
   return h('details', { class: 'history sheet' }, h('summary', { text: `History (${ev.length})` }),
     h('ol', null, ev.map((e) => h('li', null, h('span', { class: 'mono muted', text: `${fmt(e.at)}  ` }), `${nameOf(ps, e.actorId)} ${label[e.type] ?? e.type}${e.detail ? ` (${e.detail})` : ''}`))));
 }
@@ -919,6 +955,14 @@ function actionsNode(a, ps) {
   if (d.reassign) { box.append(reassignForm(a, ps)); return box; }
   if (groupOpen && !asker) box.append(h('button', { class: 'btn primary small', type: 'button', onclick: () => act(a, 'claim') }, 'Claim this ask'));
   if (asker && a.status === 'answered') box.append(h('button', { class: 'btn small', type: 'button', onclick: () => act(a, 'resolve') }, 'Mark resolved'));
+  if ((asker || following(a)) && ACTIVE.includes(a.status)) {
+    const wait = hoursSinceNudge(a) < NUDGE_COOLDOWN_HOURS;
+    box.append(h('button', { class: 'btn small', type: 'button', disabled: wait, title: wait ? `Nudged ${since(a.nudgedAt)}. You can nudge again ${NUDGE_COOLDOWN_HOURS} hours after the last one.` : 'Bring this back to the top of their inbox and their next Claude session', onclick: () => act(a, 'nudge') }, 'Nudge'));
+  }
+  if (!asker && a.status !== 'cancelled') box.append(following(a)
+    ? h('button', { class: 'btn small', type: 'button', title: 'Stop getting updates on this ask', onclick: () => act(a, 'unfollow') }, 'Following ✓')
+    : h('button', { class: 'btn small', type: 'button', title: 'You need this answer too: get its replies and resolution in your inbox and Claude sessions', onclick: () => act(a, 'follow') }, 'Me too'));
+  if (asker && !['resolved', 'cancelled'].includes(a.status)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => openComposer({ edit: a }) }, 'Edit'));
   if (active && (asker || assignee || S.isAdmin)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => { d.reassign = true; render(); } }, 'Reassign'));
   if (active && !asker && (assignee || groupOpen)) {
     if (isSnoozed(a)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => snooze(a, null) }, 'Unsnooze'));
@@ -954,7 +998,18 @@ async function act(a, action, extra) {
     else if (action === 'reopen') await patchAsk(a, { status: 'open', resolvedAt: null, answer: null }, 'reopened');
     else if (action === 'cancel') { S.detail.confirm = null; await patchAsk(a, { status: 'cancelled' }, 'cancelled'); }
     else if (action === 'reassign') await patchAsk(a, { status: 'open', claimedBy: null, toIds: extra.to, toGroup: extra.group, participants: uniq([...(a.participants ?? []), ...extra.to]) }, 'reassigned');
-    toast({ claim: 'Claimed. It is yours now.', resolve: 'Resolved', accept: 'Answer accepted. The ask is resolved.', reopen: 'Reopened', cancel: 'Cancelled', reassign: 'Reassigned' }[action]);
+    else if (action === 'nudge') {
+      if (hoursSinceNudge(a) < NUDGE_COOLDOWN_HOURS) return toast(`Nudged ${since(a.nudgedAt)}. Give it ${NUDGE_COOLDOWN_HOURS} hours between nudges.`);
+      const nudges = (Number(a.nudges) || 0) + 1;
+      await patchAsk(a, { nudgedAt: at, nudgedBy: me, nudges }, 'nudged', nudges > 1 ? `nudge ${nudges}` : '');
+    } else if (action === 'follow' || action === 'unfollow') {
+      // Following is not activity, so it must not put an unread dot on anyone's ask.
+      const followers = action === 'follow' ? uniq([...(a.followers ?? []), me]) : (a.followers ?? []).filter((id) => id !== me);
+      await S.db.doc(`asks/${a.code}`).update({ followers, updatedAt: at });
+      await logEvent(a.code, action === 'follow' ? 'followed' : 'unfollowed');
+    }
+    toast({ claim: 'Claimed. It is yours now.', resolve: 'Resolved', accept: 'Answer accepted. The ask is resolved.', reopen: 'Reopened', cancel: 'Cancelled', reassign: 'Reassigned',
+      nudge: 'Nudged. It moves to the top of their inbox and their next Claude session.', follow: 'Following. You will see replies and the answer in your inbox and Claude sessions.', unfollow: 'Stopped following' }[action]);
     markSeen(a.code);
   } catch (e) { toast(errText(e)); render(); }
 }
@@ -1021,8 +1076,11 @@ function buildReplyForm() {
 }
 
 // ------------------------------------------------------------------ composer
+// openComposer() files a new ask; openComposer({ edit: ask }) lets the asker change what they asked.
 function openComposer(prefill = {}) {
   const dlg = $('#composer');
+  const editing = prefill.edit ?? null;
+  if (editing) Object.assign(prefill, { kind: editing.kind, title: editing.title });
   const picked = new Map();
   const errors = h('ul', { class: 'errors', hidden: true });
   const pickList = h('div', { class: 'picks' });
@@ -1044,54 +1102,77 @@ function openComposer(prefill = {}) {
   const similar = h('div', { class: 'similar', hidden: true });
   title.addEventListener('input', () => {
     count.textContent = `${title.value.length}/120`;
+    if (editing) return;
     const hits = similarAsks(title.value);
     fill(similar, h('b', { text: 'Already asked? These look related.' }), hits.map((a) => h('a', { href: `#ask-${a.code}`, onclick: () => dlg.close() }, statusChip(a), h('span', { class: 't', text: a.title }))));
     similar.hidden = !hits.length;
   });
-  const body = h('textarea', { id: 'c-body', rows: 5, placeholder: 'What you tried, what you are stuck on, what a good answer looks like.' });
+  const kindNow = () => kinds.querySelector('input[name="c-kind"]:checked')?.value ?? 'question';
+  const body = h('textarea', { id: 'c-body', rows: 6, value: editing?.body ?? '', placeholder: TEMPLATES[kindNow()] });
+  // The template shows as a placeholder for the chosen kind; "Use template" writes it in so it can be filled.
+  kinds.addEventListener('change', () => { body.placeholder = TEMPLATES[kindNow()]; });
+  const useTemplate = h('button', { class: 'linkbtn', type: 'button', onclick: () => {
+    const t = TEMPLATES[kindNow()];
+    body.value = body.value.trim() ? `${body.value.trimEnd()}\n\n${t}` : t;
+    body.focus(); body.setSelectionRange(body.value.indexOf(':') + 1, body.value.indexOf(':') + 1);
+  } }, 'Use template');
   const projects = uniq(S.asks.map((a) => a.project)).sort();
-  const project = h('input', { type: 'text', id: 'c-project', list: 'c-projects', maxlength: 60, placeholder: 'e.g. storefront' });
+  const project = h('input', { type: 'text', id: 'c-project', list: 'c-projects', maxlength: 60, value: editing?.project ?? '', placeholder: 'e.g. storefront' });
   const dl = h('datalist', { id: 'c-projects' }, projects.map((p) => h('option', { value: p })));
-  const needed = h('input', { type: 'date', id: 'c-needed', min: today() });
-  const links = h('textarea', { id: 'c-links', rows: 2, placeholder: 'One link per line (Figma, Jira, PR)' });
-  const send = h('button', { class: 'btn primary', type: 'submit' }, 'Send');
+  const needed = h('input', { type: 'date', id: 'c-needed', value: editing?.neededBy ?? '', min: editing?.neededBy && editing.neededBy < today() ? editing.neededBy : today() });
+  const links = h('textarea', { id: 'c-links', rows: 2, value: (editing?.links ?? []).join('\n'), placeholder: 'One link per line (Figma, Jira, PR)' });
+  const send = h('button', { class: 'btn primary', type: 'submit' }, editing ? 'Save' : 'Send');
   const fields = h('div', { class: 'dlg-in form' });
   const form = h('form', { class: 'sheet-form', onsubmit: async (e) => {
     e.preventDefault();
-    const kind = form.querySelector('input[name="c-kind"]:checked')?.value ?? 'question';
+    const kind = kindNow();
     const linkList = links.value.split('\n').map((s) => s.trim()).filter(Boolean);
     const problems = [];
     if (!title.value.trim()) problems.push('Add a one-line title.');
-    if (!picked.size && !group.value) problems.push('Choose at least one person or a group.');
+    if (!editing && !picked.size && !group.value) problems.push('Choose at least one person or a group.');
     if (linkList.some((l) => !/^https?:\/\/\S+$/i.test(l))) problems.push('Links must start with http:// or https://.');
     if (linkList.length > 10) problems.push('At most 10 links.');
     const secrets = scan(`${title.value}\n${body.value}\n${links.value}`);
     if (secrets.length) problems.push(`This looks like it contains a secret (${secrets.join(', ')}). Remove it before sending.`);
+    const next = { kind, title: title.value.trim(), body: body.value.trim(), project: project.value.trim(), links: linkList, neededBy: needed.value || null };
+    const changed = editing ? Object.keys(next).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(editing[k] ?? (k === 'links' ? [] : k === 'neededBy' ? null : ''))) : [];
+    if (editing && !changed.length) problems.push('Nothing changed yet.');
     fill(errors, ...problems.map((p) => h('li', { text: p }))); errors.hidden = !problems.length;
     if (problems.length) { fields.scrollTop = 0; return; }
-    send.disabled = true; send.textContent = 'Sending...';
+    send.disabled = true; send.textContent = editing ? 'Saving...' : 'Sending...';
+    if (editing) {
+      try {
+        // Same rules as buildEdit() in plugin/bin/inbox.mjs: bumping activity marks the ask as updated for assignees and followers.
+        await patchAsk(editing, { ...Object.fromEntries(changed.map((k) => [k, next[k]])), editedAt: nowIso() }, 'edited', changed.join(', '));
+        dlg.close(); toast(`Saved ${editing.code}`); render();
+      } catch (err) { fill(errors, h('li', { text: errText(err) })); errors.hidden = false; fields.scrollTop = 0; send.disabled = false; send.textContent = 'Save'; }
+      return;
+    }
     const at = nowIso(), me = S.me.id, code = newCode(), toIds = [...picked.keys()];
-    const ask = { schema: 1, code, fromId: me, toIds, toGroup: group.value || null, kind, title: title.value.trim(), body: body.value.trim(), project: project.value.trim(), links: linkList,
-      context: { repo: '', branch: '', files: [], note: '' }, neededBy: needed.value || null, status: 'open', claimedBy: null, answer: null, firstAnswerAt: null, resolvedAt: null,
-      participants: uniq([me, ...toIds]), createdAt: at, updatedAt: at, lastActivityAt: at, lastActivityBy: me, source: 'page', demo: false };
+    const ask = { schema: 1, code, fromId: me, toIds, toGroup: group.value || null, ...next,
+      context: { repo: '', branch: '', files: [], note: '' }, status: 'open', claimedBy: null, answer: null, firstAnswerAt: null, resolvedAt: null,
+      participants: uniq([me, ...toIds]), followers: [], nudgedAt: null, nudges: 0, createdAt: at, updatedAt: at, lastActivityAt: at, lastActivityBy: me, source: 'page', demo: false };
     try {
       await S.db.doc(`asks/${code}`).set(ask);
       await logEvent(code, 'created');
       dlg.close(); toast(`Ask ${code} sent`); go(`ask-${code}`);
     } catch (err) { fill(errors, h('li', { text: errText(err) })); errors.hidden = false; fields.scrollTop = 0; send.disabled = false; send.textContent = 'Send'; }
   } },
-    h('header', { class: 'sheetbar' }, h('button', { class: 'linkbtn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), h('h2', { id: 'composer-title', text: 'New ask' }), send),
+    h('header', { class: 'sheetbar' }, h('button', { class: 'linkbtn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), h('h2', { id: 'composer-title', text: editing ? `Edit ${editing.code}` : 'New ask' }), send),
     fields);
   fill(fields,
     errors,
-    h('div', { class: 'field' }, h('label', { for: 'c-to' }, h('span', { text: 'To' })), pickList, who, suggest, h('small', { id: 'c-to-help', text: 'People from your organization. Add a group too, or use a group alone so anyone in it can claim the ask.' })),
-    h('div', { class: 'row2' }, h('label', { class: 'field' }, h('span', { text: 'Group' }), group), kinds),
+    editing
+      ? h('p', { class: 'note', text: 'Who it goes to stays the same. To change that, close this and use Reassign. Everyone on the ask sees it as updated.' })
+      : [h('div', { class: 'field' }, h('label', { for: 'c-to' }, h('span', { text: 'To' })), pickList, who, suggest, h('small', { id: 'c-to-help', text: 'People from your organization. Add a group too, or use a group alone so anyone in it can claim the ask.' })),
+        h('div', { class: 'row2' }, h('label', { class: 'field' }, h('span', { text: 'Group' }), group), kinds)],
+    editing ? kinds : null,
     h('label', { class: 'field' }, h('span', { text: 'Title' }), title, count),
     similar,
-    h('label', { class: 'field' }, h('span', { text: 'Details' }), body),
+    h('div', { class: 'field' }, h('div', { class: 'field-head' }, h('label', { for: 'c-body' }, h('span', { text: 'Details' })), useTemplate), body),
     h('div', { class: 'row2' }, h('label', { class: 'field' }, h('span', { text: 'Project' }), project, dl), h('label', { class: 'field' }, h('span', { text: 'Needed by' }), needed)),
     h('label', { class: 'field' }, h('span', { text: 'Links' }), links),
-    h('p', { class: 'footnote muted', text: 'Tip: from Claude Code, /team-inbox:ask adds the repo, branch and files for you.' }));
+    editing ? null : h('p', { class: 'footnote muted', text: 'Tip: from Claude Code, /team-inbox:ask adds the repo, branch and files for you, and fills the template from your work.' }));
   fill(dlg, form);
   dlg.showModal();
   title.focus();
@@ -1169,10 +1250,10 @@ function renderGuide(main, banner) {
         step('reply', '2. Answer', 'Your teammate\'s Claude mentions it at the start of their next session. They reply from Claude Code or from this page, whenever they are free.'),
         step('play', '3. Resume', 'Your next session opens with the answer, and Claude offers to carry on from where it stopped.'))),
       card('In Claude Code', h('div', { class: 'rows' },
-        cmd('/team-inbox:ask @design which CTA wins?', 'Files an ask to a person or a group, with your repo, branch and files attached.'),
+        cmd('/team-inbox:ask @design which CTA wins?', 'Files an ask to a person or a group, with your repo, branch and files attached, and fills the kind\'s template from your work. Use /team-inbox:ask edit K3F9X2 to change one you raised.'),
         cmd('/team-inbox:inbox', 'Shows what is waiting for you, replies on your asks and what you are waiting on. Add an ask code to open one thread.'),
         cmd('/team-inbox:reply K3F9X2', 'Answers an ask, or adds a follow-up to your own. Claude can draft from the code in front of you; you approve the text.'),
-        cmd('/team-inbox:resolve K3F9X2', 'Accepts an answer, or claims, reopens, reassigns or cancels an ask.'),
+        cmd('/team-inbox:resolve K3F9X2', 'Accepts an answer, or claims, reopens, reassigns or cancels an ask. Add nudge to chase one that is taking too long, or follow when you need the same answer.'),
         cmd('/team-inbox:search timezone', 'Looks through resolved asks before you ask again.'),
         cmd('/team-inbox:export', 'Backs the whole inbox up to local JSON files.')),
         h('h3', { text: 'You can also just talk' }),
@@ -1181,7 +1262,7 @@ function renderGuide(main, banner) {
         h('p', { class: 'muted' }, 'Your first Claude Code session each day opens with one line about what is waiting, and says nothing when nothing is. Change it to every session or off with ', k('/plugin configure team-inbox@team-inbox'), '.')),
       card('On this page', h('div', { class: 'rows' },
         row('For me', 'Asks assigned to you, and unclaimed asks in your groups. Blockers come first.'),
-        row('Waiting on others', 'Asks you raised that are not resolved. Answered ones sit at the top for you to check.'),
+        row('Waiting on others', 'Asks you raised or follow that are not resolved. Answered ones sit at the top for you to check.'),
         row('All open', 'Everything open across the team, with search and filters.'),
         row('Answers', 'Resolved asks and their accepted answers. Search here before you ask.'),
         row('Team', 'Who is in the inbox, their availability, how fast asks get answered, and the invite command.'),
@@ -1192,12 +1273,18 @@ function renderGuide(main, banner) {
         row(h('span', { class: 'chip open', text: 'Open' }), 'Waiting for an answer. An ask sent to a group stays open until someone claims it.'),
         row(h('span', { class: 'chip claimed', text: 'Claimed' }), 'Someone took a group ask. It is theirs now.'),
         row([h('span', { class: 'chip answered', text: 'Answered' }), h('span', { class: 'chip answered', text: 'Check answer' })], 'A teammate replied. The asker sees Check answer, and can accept the reply or write back, which reopens the ask.'),
-        row(h('span', { class: 'chip resolved', text: 'Resolved' }), 'The asker accepted an answer or closed the ask. It moves to Answers and stays searchable.'))),
+        row(h('span', { class: 'chip resolved', text: 'Resolved' }), 'The asker accepted an answer or closed the ask. It moves to Answers and stays searchable.'),
+        row(h('span', { class: 'tag tag-late', text: 'Overdue' }), `Past its needed-by date, or a blocker open longer than ${blockerHours()} hours. Overdue asks move to the top of For me and of the daily check in Claude Code.`),
+        row(h('span', { class: 'tag tag-nudge', text: 'Nudged' }), 'The asker or someone following pressed Nudge. The ask jumps to the top for the people it is assigned to, even if they snoozed it. One nudge every 4 hours.'),
+        row(h('span', { class: 'tag tag-kind', text: 'Following' }), 'You pressed Me too on someone else\'s ask. You get its replies and its answer like the asker does, and you can nudge it.'))),
       card('Asks that get answered', h('ul', { class: 'tips' },
         h('li', { text: 'Put the decision you need in the title. "Which CTA wins on mobile?" beats "Hero banner question".' }),
         h('li', { text: 'Say what you tried and what a good answer looks like.' }),
         h('li', { text: 'Send to a group when anyone in it could answer. The first person to claim it owns it.' }),
         h('li', { text: 'Add a needed-by date only when there is a real one. Overdue asks turn red.' }),
+        h('li', { text: 'Use template in New ask gives each kind a short structure: what is blocked, what you tried, what would unblock you.' }),
+        h('li', { text: 'Someone already asked what you need? Press Me too instead of asking again.' }),
+        h('li', { text: 'Waiting too long? Nudge once rather than pinging in chat. Typos or new details? Edit your ask; everyone on it sees it as updated.' }),
         h('li', null, 'Wrap code in backticks: ', k('`like this`'), ' for a name, or three backticks on their own lines around a longer snippet.'),
         h('li', { text: 'Search Answers first. The composer also shows related asks while you type the title.' }))),
       card('Keyboard shortcuts', h('div', { class: 'rows' },

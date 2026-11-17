@@ -2,6 +2,24 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, v1.1)
+- Summary: v1.1 adds nudge and escalation, follow ("Me too"), editing your own ask, and templates per kind, across the page, the helper CLI, the protocol and the skills. Spec: `docs/product/team-inbox-product-spec.md`, section v1.1.
+- Files touched: `plugin/bin/inbox.mjs`, `plugin/test/inbox.test.mjs`, `plugin/reference/protocol.md`, `plugin/skills/{ask,inbox,resolve}/SKILL.md`, `plugin/page/team-inbox.html`, `scripts/screenshots/build.cjs`, `docs/images/*.png`, `README.md`, the spec. The live page was republished.
+- Decisions:
+  - Follower notifications use a second session-check query, `followers array-contains <me>`, because the first query only returns open asks and a follower most wants to hear about the resolution. `array-contains` was checked against the live store before relying on it.
+  - The nudge cooldown (4 hours) is enforced by the CLI and the page, not by the access rules, which cannot express it. The page and the CLI share the constant and the overdue rule; each file says so.
+  - Follow and unfollow write only `followers` and `updatedAt`, never `lastActivity*`, so they do not create unread dots. Nudge and edit do bump activity, because the assignee should notice them.
+  - Page writes to `followers` are not version-pinned (the page's db API has no pin), so two people pressing Me too in the same instant could lose one. Accepted for v1.1: rare, visible, and fixed by pressing again. Claude's writes are pinned.
+  - Asks written before v1.1 have no `followers`, `nudgedAt` or `nudges`; every reader treats a missing field as empty, so no migration is needed.
+  - Fixed along the way: a focus ring drew around the whole content area after every view change, because `main` takes focus for screen readers.
+  - The screenshot demo's mock store now applies writes and re-renders, so the demo can be clicked through to test flows.
+- Verified:
+  - `npm test`: 26 of 26, including 8 new tests (nudge rules and cooldown, follow without activity, edit rules and secret scan, templates, overdue rule, digest ordering with snooze override and follower updates, CLI end to end with `blockerHours` from config).
+  - In the interactive demo: Nudge (tag, disabled button, toast), Edit (prefill, "Nothing changed yet", Use template, Save, history), Me too (Following list, Following button, Waiting on others), the Guide's new rows, and the For me ordering.
+- Not verified: the new protocol steps run by a real Claude Code session against the live inbox, and two accounts nudging and following each other.
+- Follow-ups:
+  - Inboxes created by `/team-inbox:setup` keep the page version they were published with. A way for team leads to update their page (for example `/team-inbox:update-page`) is needed before the next page release.
+
 ## 2026-11-17 (local, repo rename)
 - Summary: the GitHub repo is renamed from `mikulgohil/team-inbox` to `mikulgohil/claude-team-inbox` at the owner's request. Install is now `claude plugin install team-inbox --marketplace mikulgohil/claude-team-inbox --config inbox=<link>`.
 - Files touched: `README.md`, `plugin/.claude-plugin/plugin.json`, `plugin/page/team-inbox.html` (`MARKETPLACE`), `plugin/skills/setup/SKILL.md`, `docs/product/team-inbox-product-spec.md`, `docs/images/*.png`. The live page was republished.

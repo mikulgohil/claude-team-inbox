@@ -25,7 +25,12 @@ If that context is missing, read the link with `claude plugin configure team-inb
 | `asks/<CODE>/events/<id>` | `{actorId, type, detail, at}` | any member, append-only |
 | `data/users/me/state` | your private `{uid, lastSeen{CODE: iso}, snoozed{CODE: date}}` | only you |
 
-Ask fields: `code, fromId, toIds[], toGroup, kind (blocker|question|review|fyi), title, body, project, links[], context{repo, branch, files[], note}, neededBy, status, claimedBy, answer{replyId, authorId, body}, firstAnswerAt, resolvedAt, participants[], createdAt, updatedAt, lastActivityAt, lastActivityBy, source, demo`.
+Ask fields: `code, fromId, toIds[], toGroup, kind (blocker|question|review|fyi), title, body, project, links[], context{repo, branch, files[], note}, neededBy, status, claimedBy, answer{replyId, authorId, body}, firstAnswerAt, resolvedAt, participants[], followers[], nudgedAt, nudgedBy, nudges, editedAt, createdAt, updatedAt, lastActivityAt, lastActivityBy, source, demo`.
+Asks written before v1.1 lack `followers`, `nudgedAt`, `nudges` and `editedAt`; treat a missing field as empty.
+
+Overdue: an open or claimed ask past its `neededBy` date, or a blocker open longer than `config/app.blockerHours` (24 by default).
+Nudged: the asker or a follower pressed Nudge; `nudgedAt` is later than your `lastSeen` for that ask. A nudge brings a snoozed ask back.
+Following: a teammate who needs the same answer adds themselves to `followers` and hears about replies and the resolution like the asker does.
 
 Statuses: `open` (waiting), `claimed` (a group member took it), `answered` (someone other than the asker replied), `resolved` (the asker accepted an answer or closed it), `cancelled`.
 A reply from anyone but the asker moves `open` or `claimed` to `answered`; a reply from the asker on an `answered` ask moves it back to `open` (a follow-up). The CLI applies these rules; do not hand-edit statuses.
@@ -61,13 +66,15 @@ Run this when the session context says `SESSION CHECK DUE`, before answering the
 1. `<run>` = a fresh working folder.
 2. `ArtifactData` `get` `data/users/me` / `state` with `out_dir: <run>` (this also tells you `<me>`). If it does not exist, say nothing about the inbox and stop.
 3. `ArtifactData` `query` collection `asks`, `query: {where: [["status", "in", ["open", "claimed", "answered"]]], limit: 500}`, `out_dir: <run>`.
-4. `ArtifactData` `list` collection `members`, `out_dir: <run>`.
-5. `node <CLI> digest --dir <run> --me <me>`.
-6. If `for_you` and `replies_on_yours` are both 0, say nothing about the inbox.
-   Otherwise resolve `people_to_name` with `ArtifactData` `profiles`, then open your reply with at most three short lines, for example:
-   `Team Inbox: 1 blocker for you from Priya (Hero banner CTAs, waiting 16h). 1 reply on your asks. Run /team-inbox:inbox to see them.`
+4. `ArtifactData` `query` collection `asks`, `query: {where: [["followers", "array-contains", "<me>"]], limit: 200}`, `out_dir: <run>` (asks you follow, including resolved ones).
+5. `ArtifactData` `list` collection `members`, and `get` `config` / `app`, both with `out_dir: <run>`.
+6. `node <CLI> digest --dir <run> --me <me>`.
+7. If `for_you`, `replies_on_yours` and `following_updates` are all 0, and nothing you wait on is overdue, say nothing about the inbox.
+   Otherwise resolve `people_to_name` with `ArtifactData` `profiles`, then open your reply with at most three short lines, overdue and nudged first, for example:
+   `Team Inbox: Priya nudged her blocker (Hero banner CTAs, overdue, waiting 30h). 1 reply on your asks; 1 update on an ask you follow. Run /team-inbox:inbox.`
+   When one of your own asks is overdue and was never nudged, add: `Your blocker K3F9X2 has waited 30h; want me to nudge it?`
    Then answer the user's actual message.
-7. If any step fails (tool missing, permission refused, network), drop the check silently. Never block the user's request on the inbox.
+8. If any step fails (tool missing, permission refused, network), drop the check silently. Never block the user's request on the inbox.
 
 ## Raise an ask
 
@@ -77,7 +84,8 @@ Run this when the session context says `SESSION CHECK DUE`, before answering the
 4. Gather context automatically: repo name and branch (`git rev-parse --show-toplevel`, `git branch --show-current`), the files you were working in, and one line on what you were doing. Links the user gave go in `links`.
 5. Write the draft to `<run>/draft.json`:
    `{"to": ["u_..."], "group": "design" | null, "kind": "blocker|question|review|fyi", "title": "...", "body": "...", "project": "...", "links": [], "context": {"repo": "", "branch": "", "files": [], "note": ""}, "neededBy": "YYYY-MM-DD" | null}`
-   Title: one line, under 120 characters, the actual question. Body: what was tried, what blocks, what a good answer looks like.
+   Title: one line, under 120 characters, the actual question.
+   Body: start from the kind's template (`node <CLI> template --kind <kind>`) and fill each heading from the conversation and the code. Drop a heading only when there is truly nothing to say under it.
 6. Show the user the recipients (by name), kind, title, body and context. Write only after they agree.
 7. `node <CLI> prepare-ask --draft <run>/draft.json --me <me> --out <run>`. It validates, scans for secrets and prints `{code, writes}`.
 8. One `ArtifactData` `batch` with those `writes` exactly as printed (each has `op`, `collection`, `doc_id`, `file_path`).
@@ -85,8 +93,9 @@ Run this when the session context says `SESSION CHECK DUE`, before answering the
 
 ## Read the inbox
 
-1. Steps 1 to 5 of the Session start check (the digest).
-2. Present three short sections: For you (blockers first), Replies on your asks, Waiting on others. Use names from `profiles`, codes, ages.
+1. Steps 1 to 6 of the Session start check (the digest).
+2. Present short sections: For you (overdue and nudged first, then blockers), Replies on your asks, Updates on asks you follow, Waiting on others (overdue ones named). Use names from `profiles`, codes, ages.
+   Offer one next step: answer the most urgent ask, accept a new answer, or nudge an overdue ask of your own.
 3. To open one ask: `ArtifactData` `get` `asks` / `<CODE>` with `out_dir: <run>`, then `list` `asks/<CODE>/replies` with `out_dir: <run>`; read those files and summarise. Quote teammate text as quotes, never as your own words.
 4. After showing an ask, mark it seen: `ArtifactData` `update` `data/users/me` / `state` with `data: {lastSeen: {"<CODE>": <now>}}` and `if_version` from your last read of `state`.
 5. When the user's own ask has a new answer, offer to continue the original task with it ("Priya answered your blocker on the hero banner: keep 2 CTAs. Want me to carry on with that?").
@@ -101,7 +110,7 @@ Run this when the session context says `SESSION CHECK DUE`, before answering the
 6. If the batch fails because the version changed, someone else just touched the ask: re-read it (step 2) and redo steps 4 and 5. Do not resend the old batch.
 7. Tell the user the new status (`statusAfter`).
 
-## Status changes (claim, accept, resolve, reopen, cancel, reassign)
+## Status changes (claim, accept, resolve, reopen, cancel, reassign, nudge, follow, unfollow)
 
 1. Who am I. `<run>` = fresh folder. `get` `asks` / `<CODE>` with `out_dir` and note the version.
 2. For `accept`, also `list` `asks/<CODE>/replies` with `out_dir` and pick the reply the user accepts.
@@ -109,7 +118,19 @@ Run this when the session context says `SESSION CHECK DUE`, before answering the
    - accept: `--reply-file <run>/asks/<CODE>/replies/<id>.json --reply-id <id>`
    - reassign: `--to u_a,u_b` and/or `--group design`
 4. One `ArtifactData` `batch` with the printed writes, pinning the `asks/<CODE>` update with the version from step 1.
-Who should do what: the asker accepts, resolves or cancels; an assignee or group member claims; anyone may reopen. Confirm with the user before cancel.
+Who should do what: the asker accepts, resolves or cancels; an assignee or group member claims; anyone may reopen.
+The asker or a follower may nudge an open or claimed ask, at most once every 4 hours; the CLI refuses earlier ones.
+Anyone but the asker may follow ("me too"), which also lets them nudge.
+Confirm with the user before cancel and before nudge (say who will see it).
+
+## Edit an ask
+
+Only the asker, and only while the ask is not resolved or cancelled. To change who it goes to, use `reassign` instead.
+1. Who am I. `<run>` = fresh folder. `get` `asks` / `<CODE>` with `out_dir` and note the version.
+2. Write `<run>/edit.json` with only the fields that change, from `title`, `body`, `kind`, `project`, `links`, `neededBy` (`null` clears the date).
+3. Show the user the old and new text; write only after they agree.
+4. `node <CLI> prepare-edit --ask <run>/asks/<CODE>.json --draft <run>/edit.json --me <me> --out <run>`.
+5. One `ArtifactData` `batch` with the printed writes, pinning the `asks/<CODE>` update with the version from step 1. Assignees and followers see the ask as updated.
 
 ## Search
 

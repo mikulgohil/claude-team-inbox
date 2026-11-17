@@ -170,6 +170,14 @@ All four live in the page only; the plugin, the helper CLI and the data model ar
 - Keyboard shortcuts: `N` new ask, `/` search, `1` to `5` views, `?` guide.
 - Claude Code hand-off: every open ask shows the command to continue it in Claude Code (`/team-inbox:reply CODE`, or `/team-inbox:inbox CODE` for the asker) with a copy button.
 
+## v1.1 (2026-11-17): the loop gets more reliable
+Chosen by the owner from a feature review against Linear Asks, Stack Overflow for Teams, Guru and Geekbot. Page, helper CLI, protocol and skills all change; the access rules do not.
+- Nudge and escalation. Overdue = open or claimed and past `neededBy`, or a blocker open longer than `config/app.blockerHours`. Overdue and nudged asks sort first on the page and in the session digest. The asker or a follower may nudge an open or claimed ask once every 4 hours (`nudgedAt`, `nudgedBy`, `nudges`); a nudge brings back an ask the assignee snoozed. The digest suggests nudging your own overdue asks that were never nudged.
+- Follow ("Me too"). Anyone but the asker can add themselves to `followers`. Followers see the ask in Waiting on others, hear about replies and the resolution in their session check (`following_updates`, read with an `array-contains` query so resolved asks are included), and may nudge. Following is not activity: it never puts an unread dot on anyone's ask.
+- Edit your own ask. Title, details, kind, project, links and needed-by, while the ask is not resolved or cancelled. Recipients change only through reassign. An edit counts as activity, so assignees and followers see the ask as updated; history records which fields changed.
+- Templates per kind, shared by the page and the CLI (`template --kind`). The page shows the template as the Details placeholder and inserts it on "Use template"; Claude fills it from the conversation and the code.
+- Not in v1.1, from the same review: Claude on the page (`sample`: draft an answer, improve a question, semantic duplicates), answer freshness dates, group rotation, a lead digest, and creating Jira or Linear issues through the viewer's connectors.
+
 ## Install (added 2026-11-17 on approval)
 Install must be one paste for a teammate and one command for a team lead.
 - Teammate: one line from the invite, with the inbox link already filled in:
