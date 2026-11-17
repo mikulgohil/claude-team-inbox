@@ -2,6 +2,21 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, v1.2 to-dos)
+- Summary: to-dos, as a new kind of ask, across the helper CLI, a new `/team-inbox:todo` skill, the protocol and the page. Spec: section v1.2.
+- Files touched: `plugin/bin/inbox.mjs`, `plugin/test/inbox.test.mjs`, `plugin/reference/protocol.md`, `plugin/skills/todo/SKILL.md` (new), `plugin/skills/ask/SKILL.md`, `plugin/page/team-inbox.html`, `scripts/screenshots/build.cjs`, `docs/images/*.png`, `README.md`, the spec. The live page was republished.
+- Decisions:
+  - A kind, not a separate collection: it reuses every v1.1 mechanism and needs no new access rules. The new status `declined` and the fields `done`, `declined`, `fromAsk`, `startedAt` are the only data model additions; old asks read them as empty.
+  - The done note is stored in `done`, never in `answer`, so finished to-dos stay out of Answers and Search (both filter by kind as well).
+  - On a to-do, `claim` behaves as `start`, so the group-claim path keeps working.
+  - Follow is hidden from the people an ask is assigned to (on every kind): they already get its updates.
+  - The composer gives Kind its own row, since five kinds do not fit beside Group, and keeps Group and Needed by next to To.
+- Verified:
+  - `npm test`: 32 of 32, 6 new (to-do creation and fromAsk, start / done / reopen, can't do rules and secret scan, actions refused on the wrong kind, digest counts and flags, CLI flags).
+  - In the interactive demo: For me with to-dos and Due today, Start (Doing, carry-on command), Mark done with a note (done box, Done list), Can't do (empty reason refused, reason shown), Make a to-do from an answered question, and the composer switching to New to-do. Phone width checked in a 390px frame: the five kinds fit on one row.
+- Not verified: the `/team-inbox:todo` skill run by a real Claude Code session against the live inbox, including loading a to-do into the session's task list.
+- Note for future screenshots: headless Chrome will not make a window narrower than about 500px, so a 390px `--window-size` crops the page. Check phone layouts inside a 390px iframe (as `phones.html` does).
+
 ## 2026-11-17 (local, Agent SDK research)
 - Summary: research only, no code change. Question from the owner: what could Team Inbox add with the Claude Agent SDK?
 - Finding that decides it: an unattended agent cannot reach the inbox store today.

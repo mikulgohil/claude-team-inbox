@@ -40,6 +40,7 @@ Team Inbox gives those questions one home that both people's Claude sessions can
 - **Ask without leaving your work.** Tell Claude "ask Priya whether the events API returns UTC". It files the ask with your repo, branch and files attached, and shows you the draft first.
 - **Answer when you are free.** Your teammate's Claude mentions it at the start of their next session. They reply from Claude Code or from a shared page.
 - **Carry on where you stopped.** Your next session opens with the answer, and Claude offers to continue.
+- **Hand over work, not just questions.** "Ask Priya to update the hero tokens by Friday" files a to-do. Priya's Claude can start it with the context attached and mark it done with a note of what changed.
 
 There is no server, no database and no third-party service to run.
 Asks live in one shared [claude.ai Artifact](https://claude.ai) your team owns, and a small Claude Code plugin reads and writes it.
@@ -72,6 +73,7 @@ People without Claude Code open can read and answer on the page itself, in a bro
 | Feature | What it does |
 |---|---|
 | **Asks with context** | Questions, blockers, review requests and FYIs, sent to people or groups. From Claude Code each ask carries the repo, branch and files you were in. |
+| **To-dos** | Ask a teammate to do something, with an owner and an optional due date. To do, Doing, Done, or Can't do with a reason. "Start" in Claude Code loads the to-do as a task in your session. Any answered question can become a linked follow-up to-do. Finished to-dos live in a Done list, separate from Answers. |
 | **Templates** | Each kind has a short structure (what is blocked, what you tried, what would unblock you). Claude fills it from your work; on the page it is one click. |
 | **Nudge and escalation** | Blockers past the team's time limit and asks past their needed-by date are marked Overdue and move to the top. The asker can Nudge once every 4 hours, which brings the ask back even if it was snoozed. |
 | **Me too** | Need the same answer? Follow someone else's ask instead of asking again. You get its replies and resolution in your own session check, and you can nudge it. |
@@ -116,6 +118,16 @@ People without Claude Code open can read and answer on the page itself, in a bro
     <td width="50%" valign="top">
       <img alt="The join screen with three steps, group choices and the install command." src="docs/images/welcome.png"><br>
       <b>Joining.</b> A new teammate picks their groups and copies the install command.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img alt="A to-do with its due date, the question it follows up, and Start, Mark done and Can't do buttons." src="docs/images/todo.png"><br>
+      <b>A to-do.</b> Linked to the question it came from, with the command that starts it in Claude Code.
+    </td>
+    <td width="50%" valign="top">
+      <img alt="The Done list with a finished to-do." src="docs/images/done.png"><br>
+      <b>Done.</b> Finished to-dos and what was done, kept apart from the Answers library.
     </td>
   </tr>
 </table>
@@ -208,10 +220,13 @@ People still run `/team-inbox:join <link>` once, because the link is your team's
 | `/team-inbox:resolve K3F9X2` | Accepts an answer, or claims, reopens, reassigns or cancels an ask. |
 | `/team-inbox:resolve K3F9X2 nudge` | Chases an ask that is taking too long. Once every 4 hours. |
 | `/team-inbox:resolve K3F9X2 follow` | "Me too": follow someone else's ask and hear when it is answered. `unfollow` stops. |
+| `/team-inbox:todo` | Lists the to-dos teammates gave you, due today and overdue first. |
+| `/team-inbox:todo K3F9X2 start` | Starts a to-do: marks it Doing, loads it with its context as a task in your session, and begins the work. |
+| `/team-inbox:todo K3F9X2 done "shipped in PR 512"` | Marks it done with a note; `cant <reason>` says you can't do it. |
 | `/team-inbox:search timezone` | Looks through resolved asks before you ask again. |
 | `/team-inbox:export` | Backs the whole inbox up to local JSON files. |
 
-You can also just talk: "anything in my inbox?", "ask Priya whether the venue API returns a timezone", "tell Alex the header fix is on staging".
+You can also just talk: "what do I have to do today?", "ask Priya to update the tokens by Friday", "anything in my inbox?", "ask Priya whether the venue API returns a timezone", "tell Alex the header fix is on staging".
 When Claude itself gets stuck on something only a teammate knows, it offers to file the ask instead of guessing.
 
 ### The session-start check
@@ -232,6 +247,7 @@ Change it with `/plugin configure team-inbox@team-inbox`: `first-of-day` (the de
 | **Waiting on others** | Asks you raised or follow that are not resolved. Answered ones sit at the top. |
 | **All open** | Everything open across the team, with search and filters. |
 | **Answers** | Resolved asks and their accepted answers, searchable. |
+| **Done** | Finished to-dos and what was done, newest first. |
 | **Team** | Members, availability, answer-time stats and the invite command. |
 | **Preferences** | Your availability and groups. Owners also get inbox settings, groups, backup and archiving. |
 | **Guide** | How Team Inbox works, for new teammates. |
@@ -243,7 +259,7 @@ Keyboard shortcuts: <kbd>N</kbd> new ask, <kbd>/</kbd> search, <kbd>1</kbd> to <
 ## Under the hood
 
 - **The page** is one HTML file, [`plugin/page/team-inbox.html`](plugin/page/team-inbox.html), published as a claude.ai Artifact with a shared database (`db`), viewer identity (`user`), screenshot uploads (`assets`) and downloads.
-- **The plugin** gives Claude Code eight skills and a SessionStart hook.
+- **The plugin** gives Claude Code nine skills and a SessionStart hook.
   Claude reads and writes the inbox with its built-in `ArtifactData` tool, acting as you, with your access.
 - **The helper CLI**, [`plugin/bin/inbox.mjs`](plugin/bin/inbox.mjs), holds all the logic: ids, validation, status changes, the secret scan and the digest.
   It runs offline and is tested; Claude only moves the documents it prepares.
@@ -294,7 +310,7 @@ It runs the real page against a mocked `window.claude`, so it never touches clau
 .claude-plugin/marketplace.json    this repo is its own plugin marketplace
 plugin/.claude-plugin/plugin.json  plugin manifest and settings (inbox link, session check)
 plugin/hooks/                      SessionStart hook
-plugin/skills/<name>/SKILL.md      setup, join, ask, inbox, reply, resolve, search, export
+plugin/skills/<name>/SKILL.md      setup, join, ask, inbox, reply, resolve, todo, search, export
 plugin/reference/protocol.md       the procedure every skill follows
 plugin/bin/inbox.mjs               offline helper CLI
 plugin/page/team-inbox.html        the inbox page

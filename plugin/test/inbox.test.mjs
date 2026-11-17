@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildAsk, buildReply, buildStatus, buildEdit, scanText, digest, formatDigest, isOverdue, unwrap, newCode, timeId, TEMPLATES, KINDS } from '../bin/inbox.mjs';
+import { buildAsk, buildReply, buildStatus, buildEdit, scanText, digest, formatDigest, isOverdue, statusWord, unwrap, newCode, timeId, TEMPLATES, KINDS } from '../bin/inbox.mjs';
 
 const CLI = fileURLToPath(new URL('../bin/inbox.mjs', import.meta.url));
 const MIKUL = 'u_mikul0000000000000000a';
@@ -290,4 +290,91 @@ test('CLI: prepare-edit, nudge through prepare-status, template, and digest read
   assert.doesNotMatch(calm, /OVERDUE/, '30h is not overdue when the inbox allows 48h');
   const strict = execFileSync('node', [CLI, 'digest', '--dir', store, '--me', PRIYA, '--groups', '', '--blocker-hours', '24'], { encoding: 'utf8' });
   assert.match(strict, /\[BLOCKER\] \[OVERDUE\] K3F9X2/);
+});
+
+// ---------------------------------------------------------------- v1.2: to-dos
+
+const todoDraft = (over = {}) => draft({ kind: 'todo', title: 'Update the hero tokens to v2.3', body: 'What to do: bump tokens\n\nDone when: hero uses v2.3', neededBy: '2026-11-20', ...over });
+
+test('a to-do is an ask of kind todo, with a template and an optional link to the ask it came from', () => {
+  const { ask } = buildAsk(todoDraft({ fromAsk: 'k3f9x2' }), MIKUL, NOW, 'TD1234');
+  assert.deepEqual([ask.kind, ask.status, ask.fromAsk, ask.done, ask.declined], ['todo', 'open', 'K3F9X2', null, null]);
+  assert.match(TEMPLATES.todo, /^What to do:/);
+  assert.throws(() => buildAsk(draft({ fromAsk: 'K3F9X2' }), MIKUL, NOW), /only for a to-do/);
+  assert.throws(() => buildAsk(todoDraft({ fromAsk: 'not a code!' }), MIKUL, NOW), /not an ask code/);
+});
+
+test('to-do lifecycle: start, done with a note, reopen; replies never change its status', () => {
+  const { ask } = buildAsk(todoDraft(), MIKUL, NOW, 'TD1234');
+  const r = buildReply(ask, { body: 'Which token file, the web one?' }, PRIYA, NOW);
+  assert.equal(r.patch.status, undefined, 'a reply is conversation, not completion');
+  assert.equal(r.event, null);
+  const s = buildStatus(ask, 'start', PRIYA, {}, NOW);
+  assert.deepEqual([s.patch.status, s.patch.claimedBy, s.event.type], ['claimed', PRIYA, 'started']);
+  const doing = { ...ask, ...s.patch };
+  assert.throws(() => buildStatus(doing, 'start', PRIYA, {}, NOW), /already in progress/);
+  const d = buildStatus(doing, 'done', PRIYA, { note: 'Tokens bumped in PR 512.' }, NOW);
+  assert.equal(d.patch.status, 'resolved');
+  assert.deepEqual(d.patch.done, { by: PRIYA, note: 'Tokens bumped in PR 512.', at: NOW });
+  assert.equal(d.patch.answer, undefined, 'a done note is not an answer, so it stays out of the Answers library');
+  const done = { ...doing, ...d.patch };
+  assert.equal(statusWord(done), 'done');
+  const re = buildStatus(done, 'reopen', MIKUL, {}, NOW);
+  assert.deepEqual([re.patch.status, re.patch.done, re.patch.claimedBy], ['open', null, null]);
+  assert.equal(buildStatus(ask, 'claim', PRIYA, {}, NOW).event.type, 'started', 'claiming a group to-do starts it');
+});
+
+test("can't do: needs a reason, not by the asker, reassign or reopen brings it back", () => {
+  const { ask } = buildAsk(todoDraft(), MIKUL, NOW, 'TD1234');
+  assert.throws(() => buildStatus(ask, 'decline', PRIYA, {}, NOW), /reason is required/);
+  assert.throws(() => buildStatus(ask, 'decline', MIKUL, { reason: 'busy' }, NOW), /cancel it instead/);
+  const dec = buildStatus(ask, 'decline', PRIYA, { reason: 'Design owns the tokens, not frontend.' }, NOW);
+  assert.deepEqual([dec.patch.status, dec.patch.declined.reason, dec.event.type], ['declined', 'Design owns the tokens, not frontend.', 'declined']);
+  const declined = { ...ask, ...dec.patch };
+  assert.equal(statusWord(declined), "can't do");
+  assert.throws(() => buildReply(declined, { body: 'hm' }, MIKUL), /reopen it/);
+  const moved = buildStatus(declined, 'reassign', MIKUL, { to: [ALEX] }, NOW);
+  assert.deepEqual([moved.patch.status, moved.patch.declined], ['open', null]);
+  assert.equal(buildStatus(declined, 'reopen', MIKUL, {}, NOW).patch.status, 'open');
+  assert.throws(() => buildStatus(ask, 'decline', PRIYA, { reason: `pwd: ${'x'.repeat(4)} password = hunter2hunter2` }, NOW), /secret/);
+});
+
+test('to-do actions are refused on questions, and accept is refused on to-dos', () => {
+  const { ask: q } = buildAsk(draft({ kind: 'question' }), MIKUL, NOW, 'Q12345');
+  for (const a of ['start', 'done']) assert.throws(() => buildStatus(q, a, PRIYA, {}, NOW), /not a to-do/);
+  assert.throws(() => buildStatus(q, 'decline', PRIYA, { reason: 'x' }, NOW), /not a to-do/);
+  const { ask: t } = buildAsk(todoDraft(), MIKUL, NOW, 'TD1234');
+  assert.throws(() => buildStatus(t, 'accept', MIKUL, { reply: { askCode: 'TD1234', body: 'x' }, replyId: 'r1' }, NOW), /mark it done/);
+});
+
+test('digest counts to-dos, flags due today and doing, and words done and can\'t do plainly', () => {
+  const now = new Date('2026-11-18T12:00:00.000Z');
+  const base = { kind: 'todo', status: 'open', toIds: [PRIYA], participants: [], followers: [], createdAt: '2026-11-18T08:00:00.000Z', lastActivityAt: '2026-11-18T08:00:00.000Z', lastActivityBy: ALEX, fromId: ALEX };
+  const asks = [
+    { ...base, code: 'TDUE', title: 'Due today', neededBy: '2026-11-18' },
+    { ...base, code: 'TDO1', title: 'In progress', status: 'claimed', claimedBy: PRIYA },
+    { ...base, code: 'TQ01', kind: 'question', title: 'A question' },
+    { ...base, code: 'MINE', title: 'My to-do, declined', fromId: PRIYA, toIds: [ALEX], status: 'declined', lastActivityAt: '2026-11-18T11:00:00.000Z' },
+  ];
+  const d = digest({ asks, me: PRIYA, now });
+  assert.deepEqual(d.forYou.map((a) => a.code), ['TDUE', 'TDO1', 'TQ01']);
+  const text = formatDigest(d);
+  assert.match(text, /for_you: 3 \(2 to-do, 1 due today\)/);
+  assert.match(text, /\[TODO\] \[DUE TODAY\] TDUE/);
+  assert.match(text, /\[TODO\] \[DOING\] TDO1/);
+  assert.match(text, /MINE "My to-do, declined" can't do by/);
+});
+
+test('CLI: prepare-status passes --note and --reason for to-dos', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'team-inbox-todo-'));
+  const { ask } = buildAsk(todoDraft(), MIKUL, NOW, 'TD1234');
+  const f = join(dir, 'ask.json');
+  writeFileSync(f, JSON.stringify(ask));
+  const run = (...args) => JSON.parse(execFileSync('node', [CLI, 'prepare-status', '--ask', f, '--me', PRIYA, '--out', join(dir, 'w'), ...args], { encoding: 'utf8' }));
+  const done = run('--action', 'done', '--note', 'Shipped in PR 512.');
+  assert.equal(done.statusAfter, 'resolved');
+  assert.equal(JSON.parse(readFileSync(done.writes[0].file_path, 'utf8')).done.note, 'Shipped in PR 512.');
+  const dec = run('--action', 'decline', '--reason', 'Wrong team.');
+  assert.equal(dec.statusAfter, 'declined');
+  assert.equal(execFileSync('node', [CLI, 'template', '--kind', 'todo'], { encoding: 'utf8' }).trim(), TEMPLATES.todo);
 });

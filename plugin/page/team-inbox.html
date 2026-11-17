@@ -154,7 +154,7 @@ main:focus, main:focus-visible { outline: none; }
   .slot .short { display: inline; }
   .slot .n { display: none; }
   .slot[data-k="for-me"] .n:not(.zero) { display: block; position: absolute; top: 1px; left: calc(50% + 4px); margin: 0; background: var(--badge); color: var(--on-badge); border-radius: 999px; min-width: 18px; padding: 3px 5px; text-align: center; font-size: 11px; font-weight: 600; }
-  .slot[data-k="prefs"], .slot[data-k="guide"], .rail hr { display: none; }
+  .slot[data-k="prefs"], .slot[data-k="guide"], .slot[data-k="done"], .rail hr { display: none; }
   .me { padding: 3px; }
   .me .who { display: none; }
   .brand .team { display: none; }
@@ -198,6 +198,13 @@ main:focus, main:focus-visible { outline: none; }
 .chip.answered { background: var(--amber-tint); color: var(--amber); }
 .chip.resolved { background: var(--green-tint); color: var(--green); }
 .chip.cancelled { text-decoration: line-through; }
+.chip.declined { background: var(--red-tint); color: var(--red); }
+.tag-due { background: var(--amber-tint); color: var(--amber); }
+.declined-box { background: var(--red-tint); padding: 14px 16px; border-radius: 12px; margin-top: 18px; }
+.declined-box h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--red); }
+.inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; padding: 8px; border-radius: 12px; background: var(--fill); }
+.inline-form input { flex: 1 1 220px; min-width: 0; background: var(--field); border: 1px solid var(--line-2); border-radius: 9px; padding: 6px 10px; min-height: 32px; }
+.inline-form label { font-size: 14px; font-weight: 500; }
 .tag { flex: none; font-size: 11px; font-weight: 600; line-height: 1; padding: 4px 6px; border-radius: 5px; white-space: nowrap; }
 .tag-block { background: var(--red-tint); color: var(--red); }
 .tag-kind { background: var(--fill); color: var(--text-2); }
@@ -428,8 +435,11 @@ const SECRET_PATTERNS = [
   ['credentials in a URL', /\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:[^\s@/]{3,}@/i],
   ['password or secret assignment', /\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret)\b\s*[:=]\s*["']?[^\s"']{8,}/i],
 ];
-const KIND = { blocker: 'Blocker', question: 'Question', review: 'Review', fyi: 'FYI' };
-const STATUS = { open: 'Open', claimed: 'Claimed', answered: 'Answered', resolved: 'Resolved', cancelled: 'Cancelled' };
+const KIND = { blocker: 'Blocker', question: 'Question', review: 'Review', fyi: 'FYI', todo: 'To-do' };
+const STATUS = { open: 'Open', claimed: 'Claimed', answered: 'Answered', resolved: 'Resolved', declined: "Can't do", cancelled: 'Cancelled' };
+// A to-do never becomes "answered": to do -> doing -> done, or can't do. Same words as statusWord() in plugin/bin/inbox.mjs.
+const TODO_STATUS = { open: 'To do', claimed: 'Doing', resolved: 'Done', declined: "Can't do", cancelled: 'Cancelled' };
+const isTodo = (a) => a.kind === 'todo';
 const ACTIVE = ['open', 'claimed'];
 // Keep TEMPLATES and NUDGE_COOLDOWN_HOURS in sync with plugin/bin/inbox.mjs.
 const TEMPLATES = {
@@ -437,11 +447,12 @@ const TEMPLATES = {
   question: 'Context:\n\nQuestion:\n\nA good answer looks like:',
   review: 'What to review (link):\n\nWhat feedback I need:\n\nOut of scope:',
   fyi: 'What changed:\n\nWho it affects:\n\nAnything to do:',
+  todo: 'What to do:\n\nDone when:\n\nContext:',
 };
 const NUDGE_COOLDOWN_HOURS = 4;
-const VIEWS = { 'for-me': 'For me', waiting: 'Waiting on others', open: 'All open', answers: 'Answers', team: 'Team', prefs: 'Preferences', guide: 'Guide' };
+const VIEWS = { 'for-me': 'For me', waiting: 'Waiting on others', open: 'All open', answers: 'Answers', done: 'Done', team: 'Team', prefs: 'Preferences', guide: 'Guide' };
 // Sidebar icon and the short label used by the phone tab bar.
-const NAV = { 'for-me': ['tray', 'For me'], waiting: ['clock', 'Waiting'], open: ['list', 'Open'], answers: ['check', 'Answers'], team: ['people', 'Team'], prefs: ['sliders', 'Preferences'], guide: ['book', 'Guide'] };
+const NAV = { 'for-me': ['tray', 'For me'], waiting: ['clock', 'Waiting'], open: ['list', 'Open'], answers: ['check', 'Answers'], done: ['checksq', 'Done'], team: ['people', 'Team'], prefs: ['sliders', 'Preferences'], guide: ['book', 'Guide'] };
 // Number keys jump to these views, in this order.
 const KEY_VIEWS = ['for-me', 'waiting', 'open', 'answers', 'team'];
 const STOP_WORDS = new Set('the and for with that this from have what which when where does how are was were will can you your our not but into about there their they them then than its has had use using'.split(' '));
@@ -495,6 +506,7 @@ const ICONS = {
   bubble: ['M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-4.5 3.5V17H6a2 2 0 0 1-2-2z'],
   reply: ['M9 14 4 9l5-5', 'M4 9h10a6 6 0 0 1 6 6v4'],
   play: ['M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0', 'M10 8.5v7l5.5-3.5z'],
+  checksq: ['M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z', 'M8.5 12.2l2.4 2.4 4.6-4.9'],
   book: ['M12 6.5C10 5 7.5 4.5 4 4.5v13c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2v-13c-3.5 0-6 .5-8 2z', 'M12 6.5v13'],
   help: ['M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0', 'M9.3 9.3a2.8 2.8 0 1 1 4.4 2.3c-.9.6-1.7 1.2-1.7 2.3', 'M12 17.2h.01'],
 };
@@ -593,17 +605,22 @@ const hoursSinceNudge = (a) => (a.nudgedAt ? (Date.now() - new Date(a.nudgedAt))
 const following = (a) => (a.followers ?? []).includes(S.me?.id);
 // A nudge brings a snoozed ask back: that is what a nudge is for.
 const isSnoozed = (a) => { const d = S.state?.snoozed?.[a.code]; return Boolean(d && d > today()) && !nudgedUnseen(a); };
-const urgency = (a) => (nudgedUnseen(a) || overdue(a) ? 0 : a.kind === 'blocker' ? 1 : 2);
+const dueToday = (a) => Boolean(a.neededBy && a.neededBy === today() && ACTIVE.includes(a.status));
+const urgency = (a) => (nudgedUnseen(a) || overdue(a) ? 0 : a.kind === 'blocker' || dueToday(a) ? 1 : 2);
 const byPriority = (x, y) => urgency(x) - urgency(y) || String(x.createdAt).localeCompare(String(y.createdAt));
 function forMe() {
   const me = S.me.id, g = myGroups();
   return S.asks.filter((a) => ACTIVE.includes(a.status) && a.fromId !== me && !isSnoozed(a)
     && ((a.toIds ?? []).includes(me) || (a.status === 'open' && !(a.toIds ?? []).length && a.toGroup && g.includes(a.toGroup)))).sort(byPriority);
 }
-const waiting = () => S.asks.filter((a) => (a.fromId === S.me.id || following(a)) && ['open', 'claimed', 'answered'].includes(a.status))
-  .sort((x, y) => (x.status === 'answered' ? 0 : 1) - (y.status === 'answered' ? 0 : 1) || byPriority(x, y));
+// Your own to-dos that came back "can't do" wait here too, so you can reassign them.
+const needsYou = (a) => a.status === 'answered' || a.status === 'declined';
+const waiting = () => S.asks.filter((a) => (a.fromId === S.me.id && ['open', 'claimed', 'answered', 'declined'].includes(a.status)) || (following(a) && ['open', 'claimed', 'answered'].includes(a.status)))
+  .sort((x, y) => (needsYou(x) ? 0 : 1) - (needsYou(y) ? 0 : 1) || byPriority(x, y));
 const allOpen = () => S.asks.filter((a) => ['open', 'claimed', 'answered'].includes(a.status));
-const answers = () => S.asks.filter((a) => a.status === 'resolved').sort((x, y) => String(y.resolvedAt ?? y.updatedAt).localeCompare(String(x.resolvedAt ?? x.updatedAt)));
+const newestDone = (x, y) => String(y.resolvedAt ?? y.updatedAt).localeCompare(String(x.resolvedAt ?? x.updatedAt));
+const doneTodos = () => S.asks.filter((a) => isTodo(a) && a.status === 'resolved').sort(newestDone);
+const answers = () => S.asks.filter((a) => a.status === 'resolved' && !isTodo(a)).sort((x, y) => String(y.resolvedAt ?? y.updatedAt).localeCompare(String(x.resolvedAt ?? x.updatedAt)));
 function unread(a) {
   if (!a.lastActivityBy || a.lastActivityBy === S.me.id) return false;
   const seen = S.state?.lastSeen?.[a.code];
@@ -731,7 +748,7 @@ function renderNav() {
     h('span', { class: 'ic' }, icon(NAV[key][0])),
     h('span', { class: 'full', text: VIEWS[key] }), h('span', { class: 'short', text: NAV[key][1] }),
     counts[key] != null ? h('span', { class: `n${key === 'for-me' && hot ? ' hot' : ''}${counts[key] ? '' : ' zero'}`, text: String(counts[key]) }) : null);
-  fill(nav, slot('for-me'), slot('waiting'), slot('open'), slot('answers'), h('hr'), slot('team'), slot('prefs'), slot('guide'));
+  fill(nav, slot('for-me'), slot('waiting'), slot('open'), slot('answers'), slot('done'), h('hr'), slot('team'), slot('prefs'), slot('guide'));
 }
 
 function mount(key, build) {
@@ -767,25 +784,26 @@ async function renderMain() {
 
 // ------------------------------------------------------------------ list views
 const LIST_COPY = {
-  'for-me': ['For me', 'Asks assigned to you or waiting in your groups. Blockers first.', ['Nothing needs you', 'Asks assigned to you or your groups show up here.', 'tray']],
+  'for-me': ['For me', 'Asks and to-dos assigned to you or waiting in your groups. Most urgent first.', ['Nothing needs you', 'Asks assigned to you or your groups show up here.', 'tray']],
   waiting: ['Waiting on others', 'Asks you raised or follow that are not resolved. Answered ones are at the top for you to check.', ['You have no open asks', 'When your Claude gets blocked on a teammate, it can file one. You can also use New ask, or follow someone else\'s ask with "Me too".', 'clock']],
   open: ['All open', 'Everything open across the team.', ['No open asks across the team', 'New asks from anyone on the team appear here.', 'list']],
+  done: ['Done', 'Finished to-dos, newest first, with what was done.', ['No finished to-dos yet', 'To-dos land here when someone marks them done.', 'checksq']],
   answers: ['Answers', 'Resolved asks with their accepted answers. Search here before you ask.', ['No answers yet', 'Resolved asks land here and become searchable.', 'check']],
 };
 function renderList(main, seq, view, banner) {
   const [title, sub, empty] = LIST_COPY[view];
   const parts = mount(`list:${view}`, (root) => {
     const list = h('div');
-    const filters = view === 'open' || view === 'answers' ? buildFilters(view) : null;
+    const filters = ['open', 'answers', 'done'].includes(view) ? buildFilters(view) : null;
     fill(root, h('div', { id: 'banners' }), h('div', { class: 'vhead' }, h('div', null, h('h1', { text: title }), h('p', { text: sub }))), filters, list);
     return { list, banners: root.querySelector('#banners'), filters };
   });
   fill(parts.banners, ...banner);
   if (parts.filters) refreshFilterOptions(parts.filters);
   if (S.focusSearch && parts.filters) { S.focusSearch = false; parts.filters.querySelector('input[type="search"]')?.focus(); }
-  let rows = view === 'for-me' ? forMe() : view === 'waiting' ? waiting() : view === 'open' ? allOpen() : answers();
+  let rows = view === 'for-me' ? forMe() : view === 'waiting' ? waiting() : view === 'open' ? allOpen() : view === 'done' ? doneTodos() : answers();
   const f = S.filters;
-  if (view === 'open' || view === 'answers') {
+  if (['open', 'answers', 'done'].includes(view)) {
     const q = f.q.trim().toLowerCase();
     rows = rows.filter((a) => (!q || [a.code, a.title, a.body, a.project, a.answer?.body].some((t) => String(t ?? '').toLowerCase().includes(q)))
       && (!f.kind || a.kind === f.kind) && (!f.project || a.project === f.project));
@@ -795,7 +813,7 @@ function renderList(main, seq, view, banner) {
   people(ids).then((ps) => {
     if (seq !== S.renderSeq) return;
     if (!rows.length) {
-      const filtered = (view === 'open' || view === 'answers') && (f.q || f.kind || f.project);
+      const filtered = (['open', 'answers', 'done'].includes(view)) && (f.q || f.kind || f.project);
       fill(parts.list, filtered ? emptyState('search', 'Nothing matches these filters', 'Clear the search or filters to see everything.') : emptyState(empty[2], empty[0], empty[1]));
       return;
     }
@@ -803,11 +821,12 @@ function renderList(main, seq, view, banner) {
   });
 }
 function buildFilters(view) {
-  const q = h('input', { type: 'search', id: `q-${view}`, placeholder: view === 'answers' ? 'Search answers' : 'Search open asks', value: S.filters.q, 'aria-label': 'Search', oninput: (e) => { S.filters.q = e.target.value; render(); } });
+  const q = h('input', { type: 'search', id: `q-${view}`, placeholder: { answers: 'Search answers', done: 'Search done to-dos' }[view] ?? 'Search open asks', value: S.filters.q, 'aria-label': 'Search', oninput: (e) => { S.filters.q = e.target.value; render(); } });
   const kind = h('select', { id: `kind-${view}`, 'aria-label': 'Kind', onchange: (e) => { S.filters.kind = e.target.value; render(); } },
     h('option', { value: '', text: 'All kinds' }), Object.entries(KIND).map(([k, v]) => h('option', { value: k, text: v, selected: S.filters.kind === k })));
   const project = h('select', { id: `project-${view}`, 'aria-label': 'Project', onchange: (e) => { S.filters.project = e.target.value; render(); } });
-  const wrap = h('div', { class: 'filters' }, h('span', { class: 'search' }, icon('search'), q), kind, project);
+  // Done holds only to-dos, so a kind filter there would offer nothing.
+  const wrap = h('div', { class: 'filters' }, h('span', { class: 'search' }, icon('search'), q), view === 'done' ? null : kind, project);
   wrap._project = project;
   return wrap;
 }
@@ -820,7 +839,7 @@ function refreshFilterOptions(wrap) {
   fill(sel, h('option', { value: '', text: 'All projects' }), projects.map((p) => h('option', { value: p, text: p, selected: S.filters.project === p })));
 }
 function statusChip(a) {
-  const label = a.status === 'answered' && a.fromId === S.me.id ? 'Check answer' : STATUS[a.status] ?? a.status;
+  const label = isTodo(a) ? TODO_STATUS[a.status] ?? a.status : a.status === 'answered' && a.fromId === S.me.id ? 'Check answer' : STATUS[a.status] ?? a.status;
   return h('span', { class: `chip ${a.status}`, text: label });
 }
 function toText(ps, a) {
@@ -836,6 +855,7 @@ function askRow(a, ps, showUnread) {
     h('span', { class: 'row-main' },
       h('span', { class: 'row-title' },
         a.kind === 'blocker' ? h('span', { class: 'tag tag-block', text: 'Blocker' }) : a.kind !== 'question' ? h('span', { class: 'tag tag-kind', text: KIND[a.kind] }) : null,
+        dueToday(a) ? h('span', { class: 'tag tag-due', text: 'Due today' }) : null,
         nudgedRecently(a) ? h('span', { class: 'tag tag-nudge', title: `Nudged ${since(a.nudgedAt)}`, text: 'Nudged' }) : null,
         overdue(a) ? h('span', { class: 'tag tag-late', text: 'Overdue' }) : null,
         following(a) ? h('span', { class: 'tag tag-kind', text: 'Following' }) : null,
@@ -901,14 +921,18 @@ function detailHead(a, ps) {
       h('dt', { text: 'To' }), h('dd', null, to, a.toGroup && (a.toIds ?? []).length ? h('span', { class: 'muted', text: `group ${groupName(a.toGroup)}` }) : null),
       a.project ? [h('dt', { text: 'Project' }), h('dd', { text: a.project })] : null,
       a.neededBy ? [h('dt', { text: 'Needed by' }), h('dd', { class: pastDue(a) ? 'overdue' : '', text: `${a.neededBy}${pastDue(a) ? ' (overdue)' : ''}` })] : null,
+      a.fromAsk ? [h('dt', { text: 'Follow-up to' }), h('dd', null, h('a', { href: `#ask-${a.fromAsk}`, class: 'mono', text: a.fromAsk }), S.asks.find((x) => x.code === a.fromAsk)?.title ?? '')] : null,
       (a.followers ?? []).length ? [h('dt', { text: 'Following' }), h('dd', null, a.followers.map((id) => person(ps, id)))] : null,
       links.length ? [h('dt', { text: 'Links' }), h('dd', null, links.map((l) => h('div', null, h('a', { href: l, target: '_blank', rel: 'noopener noreferrer', text: l }))))] : null),
     a.body ? h('div', { class: 'body' }, rich(a.body)) : h('p', { class: 'muted', text: 'No details given.' }),
     ctxLines.length ? h('pre', { class: 'ctx', 'aria-label': 'Context captured by Claude', text: ctxLines.join('\n') }) : null,
     a.answer ? h('div', { class: 'answer' }, h('h3', null, icon('check'), `Accepted answer from ${nameOf(ps, a.answer.authorId)}`), h('div', { class: 'body' }, rich(a.answer.body))) : null,
-    S.canWrite !== false && !['resolved', 'cancelled'].includes(a.status)
-      ? h('div', { class: 'viaclaude' }, a.fromId === S.me.id ? 'Pick this thread up in Claude Code:' : 'Or answer from Claude Code, with your repo in front of it:',
-        cmdBlock(`/team-inbox:${a.fromId === S.me.id ? 'inbox' : 'reply'} ${a.code}`, `cc-${a.code}`))
+    a.done && a.status === 'resolved' ? h('div', { class: 'answer' }, h('h3', null, icon('check'), `Done by ${nameOf(ps, a.done.by)}, ${since(a.done.at)}`), a.done.note ? h('div', { class: 'body' }, rich(a.done.note)) : null) : null,
+    a.declined && a.status === 'declined' ? h('div', { class: 'declined-box' }, h('h3', { text: a.declined.by === S.me.id ? "You said you can't do this" : `${nameOf(ps, a.declined.by)} can't do this` }), h('div', { class: 'body' }, rich(a.declined.reason)), a.fromId === S.me.id ? h('p', { class: 'muted footnote', style: 'margin-top:8px', text: 'Reassign it to someone else, or reopen it.' }) : null) : null,
+    S.canWrite !== false && !['resolved', 'cancelled', 'declined'].includes(a.status)
+      ? h('div', { class: 'viaclaude' }, ...(isTodo(a)
+        ? (a.fromId === S.me.id ? ['Check on it from Claude Code:', cmdBlock('/team-inbox:todo', `cc-${a.code}`)] : (a.status === 'claimed' ? ['Carry on in Claude Code, which loads it as a task:', cmdBlock(`/team-inbox:todo ${a.code}`, `cc-${a.code}`)] : ['Do it in Claude Code, which starts it and loads it as a task:', cmdBlock(`/team-inbox:todo ${a.code} start`, `cc-${a.code}`)]))
+        : [a.fromId === S.me.id ? 'Pick this thread up in Claude Code:' : 'Or answer from Claude Code, with your repo in front of it:', cmdBlock(`/team-inbox:${a.fromId === S.me.id ? 'inbox' : 'reply'} ${a.code}`, `cc-${a.code}`)]))
       : null,
     actionsNode(a, ps),
   ];
@@ -917,10 +941,10 @@ function threadNodes(a, ps) {
   const d = S.detail;
   const nodes = [h('h2', { text: d.replies.length ? `Replies (${d.replies.length})` : 'Replies' })];
   if (!d.loadedR) nodes.push(h('div', { class: 'skel', 'aria-label': 'Loading replies' }));
-  else if (!d.replies.length) nodes.push(h('p', { class: 'muted', text: a.fromId === S.me.id ? 'No replies yet. You will see the answer here and in your next Claude session.' : 'No replies yet. Answer below; the asker sees it in their next Claude session.' }));
+  else if (!d.replies.length) nodes.push(h('p', { class: 'muted', text: isTodo(a) ? 'No replies yet. Questions about the to-do go here; replies do not change its status.' : a.fromId === S.me.id ? 'No replies yet. You will see the answer here and in your next Claude session.' : 'No replies yet. Answer below; the asker sees it in their next Claude session.' }));
   for (const r of d.replies) {
     const accepted = a.answer?.replyId === r.id;
-    const canAccept = a.fromId === S.me.id && r.authorId !== S.me.id && !accepted && !['resolved', 'cancelled'].includes(a.status) && S.canWrite !== false;
+    const canAccept = !isTodo(a) && a.fromId === S.me.id && r.authorId !== S.me.id && !accepted && !['resolved', 'cancelled'].includes(a.status) && S.canWrite !== false;
     const mine = r.authorId === S.me.id;
     nodes.push(h('div', { class: `reply${mine ? ' mine' : ''}${accepted ? ' accepted' : ''}` },
       mine ? null : h('img', { class: 'av', src: ps[r.authorId]?.avatarUrl || '', alt: '' }),
@@ -936,32 +960,41 @@ function threadNodes(a, ps) {
 function historyNode(ps) {
   const ev = S.detail.events;
   if (!ev.length) return null;
-  const label = { created: 'raised this ask', claimed: 'claimed it', answered: 'answered', reopened: 'reopened it', resolved: 'resolved it', cancelled: 'cancelled it', reassigned: 'reassigned it', edited: 'edited it', nudged: 'nudged it', followed: 'followed it', unfollowed: 'stopped following it' };
+  const label = { created: 'raised this ask', claimed: 'claimed it', answered: 'answered', reopened: 'reopened it', resolved: 'resolved it', cancelled: 'cancelled it', reassigned: 'reassigned it', edited: 'edited it', started: 'started it', done: 'marked it done', declined: "said they can't do it", nudged: 'nudged it', followed: 'followed it', unfollowed: 'stopped following it' };
   return h('details', { class: 'history sheet' }, h('summary', { text: `History (${ev.length})` }),
     h('ol', null, ev.map((e) => h('li', null, h('span', { class: 'mono muted', text: `${fmt(e.at)}  ` }), `${nameOf(ps, e.actorId)} ${label[e.type] ?? e.type}${e.detail ? ` (${e.detail})` : ''}`))));
 }
 function actionsNode(a, ps) {
   if (S.canWrite === false) return null;
-  const me = S.me.id, asker = a.fromId === me, active = ACTIVE.includes(a.status) || a.status === 'answered';
+  const me = S.me.id, asker = a.fromId === me, active = ACTIVE.includes(a.status) || a.status === 'answered' || (a.status === 'declined' && asker);
   const assignee = (a.toIds ?? []).includes(me);
   const groupOpen = a.status === 'open' && !(a.toIds ?? []).length && a.toGroup;
   const d = S.detail;
   const box = h('div', { class: 'actions' });
   if (d.confirm) {
-    const [label, run] = d.confirm === 'cancel' ? ['Cancel this ask? The asker and assignees will see it as cancelled.', () => act(a, 'cancel')] : ['Delete this ask and its replies for everyone? This cannot be undone.', async () => { try { await deleteAskDeep(a.code); toast(`Deleted ${a.code}`); go(S.lastList ?? 'for-me'); } catch (e) { toast(errText(e)); } }];
+    const [label, run] = d.confirm === 'cancel' ? [`Cancel this ${isTodo(a) ? 'to-do' : 'ask'}? Everyone on it will see it as cancelled.`, () => act(a, 'cancel')] : ['Delete this ask and its replies for everyone? This cannot be undone.', async () => { try { await deleteAskDeep(a.code); toast(`Deleted ${a.code}`); go(S.lastList ?? 'for-me'); } catch (e) { toast(errText(e)); } }];
     box.append(h('div', { class: 'confirm' }, h('span', { text: label }), h('button', { class: 'btn small danger', type: 'button', onclick: run }, d.confirm === 'cancel' ? 'Yes, cancel it' : 'Yes, delete'), h('button', { class: 'btn small', type: 'button', onclick: () => { d.confirm = null; render(); } }, 'Keep it')));
     return box;
   }
   if (d.reassign) { box.append(reassignForm(a, ps)); return box; }
-  if (groupOpen && !asker) box.append(h('button', { class: 'btn primary small', type: 'button', onclick: () => act(a, 'claim') }, 'Claim this ask'));
+  if (d.todoForm) { box.append(todoForm(a, d.todoForm)); return box; }
+  if (isTodo(a) && ACTIVE.includes(a.status)) {
+    const mine = assignee || a.claimedBy === me;
+    if (a.status === 'open' && !asker && (assignee || groupOpen)) box.append(h('button', { class: 'btn primary small', type: 'button', onclick: () => act(a, 'start') }, 'Start'));
+    if (mine || asker || groupOpen) box.append(h('button', { class: `btn small${a.status === 'claimed' && mine ? ' primary' : ''}`, type: 'button', onclick: () => { d.todoForm = 'done'; render(); } }, 'Mark done'));
+    if (!asker && (mine || groupOpen)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => { d.todoForm = 'decline'; render(); } }, "Can't do"));
+  }
+  if (groupOpen && !asker && !isTodo(a)) box.append(h('button', { class: 'btn primary small', type: 'button', onclick: () => act(a, 'claim') }, 'Claim this ask'));
   if (asker && a.status === 'answered') box.append(h('button', { class: 'btn small', type: 'button', onclick: () => act(a, 'resolve') }, 'Mark resolved'));
+  if (!isTodo(a) && ['answered', 'resolved'].includes(a.status)) box.append(h('button', { class: 'btn small', type: 'button', title: 'Turn the follow-up work from this ask into a to-do linked to it', onclick: () => openComposer({ todoFrom: a }) }, 'Make a to-do'));
   if ((asker || following(a)) && ACTIVE.includes(a.status)) {
     const wait = hoursSinceNudge(a) < NUDGE_COOLDOWN_HOURS;
     box.append(h('button', { class: 'btn small', type: 'button', disabled: wait, title: wait ? `Nudged ${since(a.nudgedAt)}. You can nudge again ${NUDGE_COOLDOWN_HOURS} hours after the last one.` : 'Bring this back to the top of their inbox and their next Claude session', onclick: () => act(a, 'nudge') }, 'Nudge'));
   }
-  if (!asker && a.status !== 'cancelled') box.append(following(a)
+  // Following is for bystanders who need the outcome; the people an ask is assigned to already get it.
+  if (!asker && !assignee && a.claimedBy !== me && !['cancelled', 'declined'].includes(a.status)) box.append(following(a)
     ? h('button', { class: 'btn small', type: 'button', title: 'Stop getting updates on this ask', onclick: () => act(a, 'unfollow') }, 'Following ✓')
-    : h('button', { class: 'btn small', type: 'button', title: 'You need this answer too: get its replies and resolution in your inbox and Claude sessions', onclick: () => act(a, 'follow') }, 'Me too'));
+    : h('button', { class: 'btn small', type: 'button', title: isTodo(a) ? 'Get updates on this to-do in your inbox and Claude sessions' : 'You need this answer too: get its replies and resolution in your inbox and Claude sessions', onclick: () => act(a, 'follow') }, isTodo(a) ? 'Follow' : 'Me too'));
   if (asker && !['resolved', 'cancelled'].includes(a.status)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => openComposer({ edit: a }) }, 'Edit'));
   if (active && (asker || assignee || S.isAdmin)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => { d.reassign = true; render(); } }, 'Reassign'));
   if (active && !asker && (assignee || groupOpen)) {
@@ -971,10 +1004,28 @@ function actionsNode(a, ps) {
       box.append(h('span', { class: 'confirm neutral' }, h('label', { for: date.id, text: 'Snooze until' }), date, h('button', { class: 'btn small', type: 'button', onclick: () => date.value ? snooze(a, date.value) : toast('Pick a date first') }, 'Snooze')));
     }
   }
-  if (['resolved', 'cancelled'].includes(a.status)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => act(a, 'reopen') }, 'Reopen'));
-  if (active && (asker || S.isAdmin)) box.append(h('button', { class: 'btn small danger', type: 'button', onclick: () => { d.confirm = 'cancel'; render(); } }, 'Cancel ask'));
+  if (['resolved', 'cancelled'].includes(a.status) || (a.status === 'declined' && asker)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => act(a, 'reopen') }, 'Reopen'));
+  if (active && (asker || S.isAdmin)) box.append(h('button', { class: 'btn small danger', type: 'button', onclick: () => { d.confirm = 'cancel'; render(); } }, isTodo(a) ? 'Cancel to-do' : 'Cancel ask'));
   if (S.isAdmin) box.append(h('button', { class: 'btn small danger', type: 'button', onclick: () => { d.confirm = 'delete'; render(); } }, 'Delete'));
   return box.childElementCount ? box : null;
+}
+// Mark done takes an optional note; can't do needs a reason. Same rules as buildStatus() in plugin/bin/inbox.mjs.
+function todoForm(a, which) {
+  const done = which === 'done';
+  const input = h('input', { type: 'text', id: `todo-${which}-${a.code}`, maxlength: done ? 4000 : 1000, placeholder: done ? 'What changed? A PR, a commit, a file (optional)' : 'Why not? For example: wrong team, no access, not this sprint' });
+  const close = () => { S.detail.todoForm = null; render(); };
+  const submit = () => {
+    const text = input.value.trim();
+    if (!done && !text) { input.focus(); return toast('Add a short reason so the asker can reassign it'); }
+    if (scan(text).length) return toast('That looks like it contains a secret. Remove it first.');
+    S.detail.todoForm = null;
+    act(a, done ? 'done' : 'decline', { text });
+  };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } if (e.key === 'Escape') { e.preventDefault(); close(); } });
+  setTimeout(() => input.focus(), 0);
+  return h('div', { class: 'inline-form' }, h('label', { for: input.id, text: done ? 'Done note' : "Can't do because" }), input,
+    h('button', { class: `btn small ${done ? 'primary' : 'danger'}`, type: 'button', onclick: submit }, done ? 'Mark done' : "Can't do"),
+    h('button', { class: 'btn small', type: 'button', onclick: close }, 'Cancel'));
 }
 function reassignForm(a, ps) {
   const memberIds = [...S.members.keys()].filter((id) => id !== a.fromId);
@@ -995,9 +1046,12 @@ async function act(a, action, extra) {
     if (action === 'claim') await patchAsk(a, { status: 'claimed', claimedBy: me, toIds: uniq([...(a.toIds ?? []), me]), participants: uniq([...(a.participants ?? []), me]) }, 'claimed');
     else if (action === 'resolve') await patchAsk(a, { status: 'resolved', resolvedAt: at }, 'resolved');
     else if (action === 'accept') await patchAsk(a, { status: 'resolved', resolvedAt: at, answer: { replyId: extra.id, authorId: extra.authorId, body: String(extra.body).slice(0, 4000) } }, 'resolved', `accepted reply ${extra.id}`);
-    else if (action === 'reopen') await patchAsk(a, { status: 'open', resolvedAt: null, answer: null }, 'reopened');
+    else if (action === 'reopen') await patchAsk(a, { status: 'open', claimedBy: null, resolvedAt: null, answer: null, done: null, declined: null }, 'reopened');
+    else if (action === 'start') await patchAsk(a, { status: 'claimed', claimedBy: me, startedAt: at, toIds: uniq([...(a.toIds ?? []), me]), participants: uniq([...(a.participants ?? []), me]) }, 'started');
+    else if (action === 'done') await patchAsk(a, { status: 'resolved', resolvedAt: at, done: { by: me, note: extra.text, at }, participants: uniq([...(a.participants ?? []), me]) }, 'done', extra.text.slice(0, 120));
+    else if (action === 'decline') await patchAsk(a, { status: 'declined', claimedBy: null, declined: { by: me, reason: extra.text, at } }, 'declined', extra.text.slice(0, 120));
     else if (action === 'cancel') { S.detail.confirm = null; await patchAsk(a, { status: 'cancelled' }, 'cancelled'); }
-    else if (action === 'reassign') await patchAsk(a, { status: 'open', claimedBy: null, toIds: extra.to, toGroup: extra.group, participants: uniq([...(a.participants ?? []), ...extra.to]) }, 'reassigned');
+    else if (action === 'reassign') await patchAsk(a, { status: 'open', claimedBy: null, declined: null, toIds: extra.to, toGroup: extra.group, participants: uniq([...(a.participants ?? []), ...extra.to]) }, 'reassigned');
     else if (action === 'nudge') {
       if (hoursSinceNudge(a) < NUDGE_COOLDOWN_HOURS) return toast(`Nudged ${since(a.nudgedAt)}. Give it ${NUDGE_COOLDOWN_HOURS} hours between nudges.`);
       const nudges = (Number(a.nudges) || 0) + 1;
@@ -1008,7 +1062,7 @@ async function act(a, action, extra) {
       await S.db.doc(`asks/${a.code}`).update({ followers, updatedAt: at });
       await logEvent(a.code, action === 'follow' ? 'followed' : 'unfollowed');
     }
-    toast({ claim: 'Claimed. It is yours now.', resolve: 'Resolved', accept: 'Answer accepted. The ask is resolved.', reopen: 'Reopened', cancel: 'Cancelled', reassign: 'Reassigned',
+    toast({ start: 'Started. Teammates see it as Doing.', done: 'Done. The asker hears about it in their inbox and next Claude session.', decline: "Marked can't do. The asker sees your reason.", claim: 'Claimed. It is yours now.', resolve: 'Resolved', accept: 'Answer accepted. The ask is resolved.', reopen: 'Reopened', cancel: 'Cancelled', reassign: 'Reassigned',
       nudge: 'Nudged. It moves to the top of their inbox and their next Claude session.', follow: 'Following. You will see replies and the answer in your inbox and Claude sessions.', unfollow: 'Stopped following' }[action]);
     markSeen(a.code);
   } catch (e) { toast(errText(e)); render(); }
@@ -1053,7 +1107,8 @@ function buildReplyForm() {
       await S.db.doc(`asks/${a.code}/replies/${replyId}`).set({ schema: 1, askCode: a.code, authorId: me, body, assets, createdAt: at, source: 'page' });
       const patch = { participants: uniq([...(a.participants ?? []), me]) };
       let ev = null;
-      if (me !== a.fromId && ACTIVE.includes(a.status)) { patch.status = 'answered'; if (!a.firstAnswerAt) patch.firstAnswerAt = at; ev = 'answered'; }
+      if (isTodo(a)) { /* a reply on a to-do is conversation, not completion */ }
+      else if (me !== a.fromId && ACTIVE.includes(a.status)) { patch.status = 'answered'; if (!a.firstAnswerAt) patch.firstAnswerAt = at; ev = 'answered'; }
       else if (me === a.fromId && a.status === 'answered') { patch.status = 'open'; ev = 'reopened'; }
       await patchAsk(a, patch, ev, ev === 'reopened' ? 'follow-up question' : '');
       ta.value = ''; files.value = ''; fileLabel.textContent = '';
@@ -1067,10 +1122,10 @@ function buildReplyForm() {
     el: form,
     sync(a) {
       current = a;
-      const closed = ['resolved', 'cancelled'].includes(a.status);
+      const closed = ['resolved', 'cancelled', 'declined'].includes(a.status);
       form.hidden = closed || S.canWrite === false;
       attach.hidden = !S.assets;
-      hint.textContent = a.fromId === S.me.id && a.status === 'answered' ? 'Replying reopens the ask as a follow-up.' : a.fromId === S.me.id ? 'Add detail or a follow-up.' : 'Your reply marks the ask as answered.';
+      hint.textContent = isTodo(a) ? 'Replies do not change a to-do. Use Mark done when it is finished.' : a.fromId === S.me.id && a.status === 'answered' ? 'Replying reopens the ask as a follow-up.' : a.fromId === S.me.id ? 'Add detail or a follow-up.' : 'Your reply marks the ask as answered.';
     },
   };
 }
@@ -1081,6 +1136,9 @@ function openComposer(prefill = {}) {
   const dlg = $('#composer');
   const editing = prefill.edit ?? null;
   if (editing) Object.assign(prefill, { kind: editing.kind, title: editing.title });
+  const source = prefill.todoFrom ?? null;
+  if (source) Object.assign(prefill, { kind: 'todo', title: `Follow-up: ${source.title}`.slice(0, 120), body: `${TEMPLATES.todo}\n\nFollow-up to ${source.code}.` });
+  const titleHint = (k) => (k === 'todo' ? 'One line: what needs doing?' : 'One line: what do you need to know?');
   const picked = new Map();
   const errors = h('ul', { class: 'errors', hidden: true });
   const pickList = h('div', { class: 'picks' });
@@ -1097,7 +1155,7 @@ function openComposer(prefill = {}) {
   who.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !suggest.hidden) { e.stopPropagation(); e.preventDefault(); suggest.hidden = true; } });
   const group = h('select', { id: 'c-group' }, h('option', { value: '', text: 'No group' }), S.groups.map((g) => h('option', { value: g.id, text: g.name })));
   const kinds = segmented('Kind', 'c-kind', Object.entries(KIND), prefill.kind ?? 'question');
-  const title = h('input', { type: 'text', id: 'c-title', maxlength: 120, required: true, value: prefill.title ?? '', placeholder: 'One line: what do you need to know?' });
+  const title = h('input', { type: 'text', id: 'c-title', maxlength: 120, required: true, value: prefill.title ?? '', placeholder: titleHint(prefill.kind ?? 'question') });
   const count = h('small', { text: `${title.value.length}/120` });
   const similar = h('div', { class: 'similar', hidden: true });
   title.addEventListener('input', () => {
@@ -1108,9 +1166,14 @@ function openComposer(prefill = {}) {
     similar.hidden = !hits.length;
   });
   const kindNow = () => kinds.querySelector('input[name="c-kind"]:checked')?.value ?? 'question';
-  const body = h('textarea', { id: 'c-body', rows: 6, value: editing?.body ?? '', placeholder: TEMPLATES[kindNow()] });
+  const body = h('textarea', { id: 'c-body', rows: 6, value: editing?.body ?? prefill.body ?? '', placeholder: TEMPLATES[kindNow()] });
   // The template shows as a placeholder for the chosen kind; "Use template" writes it in so it can be filled.
-  kinds.addEventListener('change', () => { body.placeholder = TEMPLATES[kindNow()]; });
+  const heading = h('h2', { id: 'composer-title', text: editing ? `Edit ${editing.code}` : prefill.kind === 'todo' ? 'New to-do' : 'New ask' });
+  kinds.addEventListener('change', () => {
+    body.placeholder = TEMPLATES[kindNow()];
+    title.placeholder = titleHint(kindNow());
+    if (!editing) heading.textContent = kindNow() === 'todo' ? 'New to-do' : 'New ask';
+  });
   const useTemplate = h('button', { class: 'linkbtn', type: 'button', onclick: () => {
     const t = TEMPLATES[kindNow()];
     body.value = body.value.trim() ? `${body.value.trimEnd()}\n\n${t}` : t;
@@ -1151,26 +1214,26 @@ function openComposer(prefill = {}) {
     const at = nowIso(), me = S.me.id, code = newCode(), toIds = [...picked.keys()];
     const ask = { schema: 1, code, fromId: me, toIds, toGroup: group.value || null, ...next,
       context: { repo: '', branch: '', files: [], note: '' }, status: 'open', claimedBy: null, answer: null, firstAnswerAt: null, resolvedAt: null,
-      participants: uniq([me, ...toIds]), followers: [], nudgedAt: null, nudges: 0, createdAt: at, updatedAt: at, lastActivityAt: at, lastActivityBy: me, source: 'page', demo: false };
+      participants: uniq([me, ...toIds]), followers: [], nudgedAt: null, nudges: 0, fromAsk: kind === 'todo' && source ? source.code : null, done: null, declined: null, createdAt: at, updatedAt: at, lastActivityAt: at, lastActivityBy: me, source: 'page', demo: false };
     try {
       await S.db.doc(`asks/${code}`).set(ask);
       await logEvent(code, 'created');
-      dlg.close(); toast(`Ask ${code} sent`); go(`ask-${code}`);
+      dlg.close(); toast(`${kind === 'todo' ? 'To-do' : 'Ask'} ${code} sent`); go(`ask-${code}`);
     } catch (err) { fill(errors, h('li', { text: errText(err) })); errors.hidden = false; fields.scrollTop = 0; send.disabled = false; send.textContent = 'Send'; }
   } },
-    h('header', { class: 'sheetbar' }, h('button', { class: 'linkbtn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), h('h2', { id: 'composer-title', text: editing ? `Edit ${editing.code}` : 'New ask' }), send),
+    h('header', { class: 'sheetbar' }, h('button', { class: 'linkbtn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), heading, send),
     fields);
+  // Kind gets a full row: five options do not fit beside Group. Group sits with To, since both say who it is for.
   fill(fields,
     errors,
-    editing
-      ? h('p', { class: 'note', text: 'Who it goes to stays the same. To change that, close this and use Reassign. Everyone on the ask sees it as updated.' })
-      : [h('div', { class: 'field' }, h('label', { for: 'c-to' }, h('span', { text: 'To' })), pickList, who, suggest, h('small', { id: 'c-to-help', text: 'People from your organization. Add a group too, or use a group alone so anyone in it can claim the ask.' })),
-        h('div', { class: 'row2' }, h('label', { class: 'field' }, h('span', { text: 'Group' }), group), kinds)],
-    editing ? kinds : null,
+    editing ? h('p', { class: 'note', text: 'Who it goes to stays the same. To change that, close this and use Reassign. Everyone on the ask sees it as updated.' }) : null,
+    kinds,
+    editing ? null : h('div', { class: 'field' }, h('label', { for: 'c-to' }, h('span', { text: 'To' })), pickList, who, suggest, h('small', { id: 'c-to-help', text: 'People from your organization. Add a group too, or use a group alone so anyone in it can claim the ask.' })),
+    h('div', { class: 'row2' }, editing ? null : h('label', { class: 'field' }, h('span', { text: 'Group' }), group), h('label', { class: 'field' }, h('span', { text: 'Needed by' }), needed)),
     h('label', { class: 'field' }, h('span', { text: 'Title' }), title, count),
     similar,
     h('div', { class: 'field' }, h('div', { class: 'field-head' }, h('label', { for: 'c-body' }, h('span', { text: 'Details' })), useTemplate), body),
-    h('div', { class: 'row2' }, h('label', { class: 'field' }, h('span', { text: 'Project' }), project, dl), h('label', { class: 'field' }, h('span', { text: 'Needed by' }), needed)),
+    h('label', { class: 'field' }, h('span', { text: 'Project' }), project, dl),
     h('label', { class: 'field' }, h('span', { text: 'Links' }), links),
     editing ? null : h('p', { class: 'footnote muted', text: 'Tip: from Claude Code, /team-inbox:ask adds the repo, branch and files for you, and fills the template from your work.' }));
   fill(dlg, form);
@@ -1254,6 +1317,7 @@ function renderGuide(main, banner) {
         cmd('/team-inbox:inbox', 'Shows what is waiting for you, replies on your asks and what you are waiting on. Add an ask code to open one thread.'),
         cmd('/team-inbox:reply K3F9X2', 'Answers an ask, or adds a follow-up to your own. Claude can draft from the code in front of you; you approve the text.'),
         cmd('/team-inbox:resolve K3F9X2', 'Accepts an answer, or claims, reopens, reassigns or cancels an ask. Add nudge to chase one that is taking too long, or follow when you need the same answer.'),
+        cmd('/team-inbox:todo', 'Lists the to-dos teammates gave you. Add a code and start to begin one: Claude marks it Doing and loads it as a task. Then done or cant with a reason.'),
         cmd('/team-inbox:search timezone', 'Looks through resolved asks before you ask again.'),
         cmd('/team-inbox:export', 'Backs the whole inbox up to local JSON files.')),
         h('h3', { text: 'You can also just talk' }),
@@ -1265,6 +1329,7 @@ function renderGuide(main, banner) {
         row('Waiting on others', 'Asks you raised or follow that are not resolved. Answered ones sit at the top for you to check.'),
         row('All open', 'Everything open across the team, with search and filters.'),
         row('Answers', 'Resolved asks and their accepted answers. Search here before you ask.'),
+        row('Done', 'Finished to-dos and what was done, newest first.'),
         row('Team', 'Who is in the inbox, their availability, how fast asks get answered, and the invite command.'),
         row('Preferences', 'Your availability and groups. Owners also get inbox settings, backup and archiving.'))),
       card('What the labels mean', h('div', { class: 'rows' },
@@ -1274,6 +1339,7 @@ function renderGuide(main, banner) {
         row(h('span', { class: 'chip claimed', text: 'Claimed' }), 'Someone took a group ask. It is theirs now.'),
         row([h('span', { class: 'chip answered', text: 'Answered' }), h('span', { class: 'chip answered', text: 'Check answer' })], 'A teammate replied. The asker sees Check answer, and can accept the reply or write back, which reopens the ask.'),
         row(h('span', { class: 'chip resolved', text: 'Resolved' }), 'The asker accepted an answer or closed the ask. It moves to Answers and stays searchable.'),
+        row([h('span', { class: 'tag tag-kind', text: 'To-do' }), h('span', { class: 'chip open', text: 'To do' }), h('span', { class: 'chip claimed', text: 'Doing' }), h('span', { class: 'chip resolved', text: 'Done' }), h('span', { class: 'chip declined', text: "Can't do" })], 'A to-do asks someone to do something instead of answering something. Start it, then Mark done with a note of what changed. Replies never change its status. Can\'t do needs a reason, and the asker can reassign it.'),
         row(h('span', { class: 'tag tag-late', text: 'Overdue' }), `Past its needed-by date, or a blocker open longer than ${blockerHours()} hours. Overdue asks move to the top of For me and of the daily check in Claude Code.`),
         row(h('span', { class: 'tag tag-nudge', text: 'Nudged' }), 'The asker or someone following pressed Nudge. The ask jumps to the top for the people it is assigned to, even if they snoozed it. One nudge every 4 hours.'),
         row(h('span', { class: 'tag tag-kind', text: 'Following' }), 'You pressed Me too on someone else\'s ask. You get its replies and its answer like the asker does, and you can nudge it.'))),
@@ -1284,6 +1350,7 @@ function renderGuide(main, banner) {
         h('li', { text: 'Add a needed-by date only when there is a real one. Overdue asks turn red.' }),
         h('li', { text: 'Use template in New ask gives each kind a short structure: what is blocked, what you tried, what would unblock you.' }),
         h('li', { text: 'Someone already asked what you need? Press Me too instead of asking again.' }),
+        h('li', { text: 'Need something done rather than answered? Choose To-do. An answer that means more work for someone? Make a to-do from it, linked back to the question.' }),
         h('li', { text: 'Waiting too long? Nudge once rather than pinging in chat. Typos or new details? Edit your ask; everyone on it sees it as updated.' }),
         h('li', null, 'Wrap code in backticks: ', k('`like this`'), ' for a name, or three backticks on their own lines around a longer snippet.'),
         h('li', { text: 'Search Answers first. The composer also shows related asks while you type the title.' }))),

@@ -178,6 +178,15 @@ Chosen by the owner from a feature review against Linear Asks, Stack Overflow fo
 - Templates per kind, shared by the page and the CLI (`template --kind`). The page shows the template as the Details placeholder and inserts it on "Use template"; Claude fills it from the conversation and the code.
 - Not in v1.1, from the same review: Claude on the page (`sample`: draft an answer, improve a question, semantic duplicates), answer freshness dates, group rotation, a lead digest, and creating Jira or Linear issues through the viewer's connectors.
 
+## v1.2 (2026-11-17): to-dos
+Approved by the owner as "Option 1" after research into Slack Lists, Basecamp, Linear Asks, Asana and Microsoft Planner.
+- A to-do is an ask of kind `todo`: a request to do something rather than to answer something. It reuses assignment, groups, needed-by dates, Overdue, Nudge, Follow, Edit, history and the session check.
+- Lifecycle: To do (`open`), Doing (`claimed`, via Start), Done (`resolved`, with an optional note in `done`), Can't do (`declined`, with a required reason in `declined`). Replies never change a to-do's status. No accept step: assigning means it is yours, as in Slack Lists, Asana and Planner. The owner marks it done without sign-off; the asker can reopen. Only the assignee declines; the asker cancels.
+- Done to-dos go to a Done list, never into Answers or Search: a finished to-do is a record of work, not knowledge.
+- "Make a to-do" on an answered or resolved question opens a to-do prefilled from it and linked back (`fromAsk`).
+- Claude Code: `/team-inbox:todo` lists, starts (marks Doing and loads the to-do as a task in the session), marks done or can't do, and files to-dos. The daily check counts to-dos and flags those due today.
+- Deliberately out, to avoid rebuilding a tracker: priorities, subtasks, estimates, boards, several owners per to-do. Sending to Jira, Linear or Todoist through the viewer's connectors stays a possible later add-on.
+
 ## Install (added 2026-11-17 on approval)
 Install must be one paste for a teammate and one command for a team lead.
 - Teammate: one line from the invite, with the inbox link already filled in:

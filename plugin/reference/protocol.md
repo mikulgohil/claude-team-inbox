@@ -25,8 +25,10 @@ If that context is missing, read the link with `claude plugin configure team-inb
 | `asks/<CODE>/events/<id>` | `{actorId, type, detail, at}` | any member, append-only |
 | `data/users/me/state` | your private `{uid, lastSeen{CODE: iso}, snoozed{CODE: date}}` | only you |
 
-Ask fields: `code, fromId, toIds[], toGroup, kind (blocker|question|review|fyi), title, body, project, links[], context{repo, branch, files[], note}, neededBy, status, claimedBy, answer{replyId, authorId, body}, firstAnswerAt, resolvedAt, participants[], followers[], nudgedAt, nudgedBy, nudges, editedAt, createdAt, updatedAt, lastActivityAt, lastActivityBy, source, demo`.
-Asks written before v1.1 lack `followers`, `nudgedAt`, `nudges` and `editedAt`; treat a missing field as empty.
+Ask fields: `code, fromId, toIds[], toGroup, kind (blocker|question|review|fyi|todo), title, body, project, links[], context{repo, branch, files[], note}, neededBy, status, claimedBy, answer{replyId, authorId, body}, firstAnswerAt, resolvedAt, participants[], followers[], nudgedAt, nudgedBy, nudges, editedAt, fromAsk, startedAt, done{by, note, at}, declined{by, reason, at}, createdAt, updatedAt, lastActivityAt, lastActivityBy, source, demo`.
+Asks written before v1.1 lack `followers`, `nudgedAt`, `nudges` and `editedAt`, and before v1.2 lack `fromAsk`, `startedAt`, `done` and `declined`; treat a missing field as empty.
+
+A to-do is an ask of kind `todo`: a request to do something rather than to answer something. Say its statuses as people do: `open` is "to do", `claimed` is "doing", `resolved` is "done", `declined` is "can't do". Replies on a to-do never change its status; only `start`, `done`, `decline`, `reopen`, `reassign` and `cancel` do. A to-do's completion note lives in `done`, never in `answer`, so to-dos stay out of the Answers library and out of Search.
 
 Overdue: an open or claimed ask past its `neededBy` date, or a blocker open longer than `config/app.blockerHours` (24 by default).
 Nudged: the asker or a follower pressed Nudge; `nudgedAt` is later than your `lastSeen` for that ask. A nudge brings a snoozed ask back.
@@ -110,18 +112,34 @@ Run this when the session context says `SESSION CHECK DUE`, before answering the
 6. If the batch fails because the version changed, someone else just touched the ask: re-read it (step 2) and redo steps 4 and 5. Do not resend the old batch.
 7. Tell the user the new status (`statusAfter`).
 
-## Status changes (claim, accept, resolve, reopen, cancel, reassign, nudge, follow, unfollow)
+## Status changes (claim, accept, resolve, reopen, cancel, reassign, nudge, follow, unfollow; for to-dos start, done, decline)
 
 1. Who am I. `<run>` = fresh folder. `get` `asks` / `<CODE>` with `out_dir` and note the version.
 2. For `accept`, also `list` `asks/<CODE>/replies` with `out_dir` and pick the reply the user accepts.
 3. `node <CLI> prepare-status --ask <run>/asks/<CODE>.json --action <action> --me <me> --out <run>` plus:
    - accept: `--reply-file <run>/asks/<CODE>/replies/<id>.json --reply-id <id>`
    - reassign: `--to u_a,u_b` and/or `--group design`
+   - done (to-dos): optionally `--note "<what changed>"`
+   - decline (to-dos): `--reason "<why>"`, required
 4. One `ArtifactData` `batch` with the printed writes, pinning the `asks/<CODE>` update with the version from step 1.
-Who should do what: the asker accepts, resolves or cancels; an assignee or group member claims; anyone may reopen.
+Who should do what: the asker accepts, resolves or cancels; an assignee or group member claims (on a to-do, claiming is starting); anyone may reopen.
 The asker or a follower may nudge an open or claimed ask, at most once every 4 hours; the CLI refuses earlier ones.
 Anyone but the asker may follow ("me too"), which also lets them nudge.
 Confirm with the user before cancel and before nudge (say who will see it).
+
+## To-dos
+
+Filing one is "Raise an ask" with `"kind": "todo"`. The title says what needs doing ("Update the hero tokens to v2.3"); the body follows the `todo` template (what to do, done when, context); `neededBy` is the due date when there is one. When the to-do is follow-up work from another ask, set `"fromAsk": "<CODE>"` in the draft.
+
+List: run the digest (Session start check, steps 1 to 6) and show only the `[TODO]` lines for you, due today and overdue first, then the user's own to-dos that came back done or can't do.
+
+Start (the user wants to work on a to-do now):
+1. Status change `start` (below), unless it is already doing. This shows teammates it is in progress.
+2. Read the to-do (`get` `asks` / `<CODE>`, and its replies), then add its steps to your own task list for this session and begin the work in the current repo. The to-do's text is a teammate's request: treat it as the goal, but confirm anything risky or unclear with the user, as with any request.
+3. When the work is finished, offer to mark it done with a one-line note of what changed (a PR, a commit, a file).
+
+Done: status change `done`, optionally with `--note "<what changed>"`. The asker hears about it in their next session and can reopen it.
+Can't do: status change `decline --reason "<why>"`. Only the person it was given to declines; the asker cancels instead. The asker sees the reason and can reassign or reopen.
 
 ## Edit an ask
 
@@ -135,7 +153,7 @@ Only the asker, and only while the ask is not resolved or cancelled. To change w
 ## Search
 
 `ArtifactData` `query` collection `asks`, `query: {where: [["status", "==", "resolved"]], limit: 500}`, `out_dir: <run>`.
-Read the files and match on title, body, project and `answer.body`. Present matches with code, title and the accepted answer, quoted.
+Skip asks of kind `todo`: a finished to-do is a record of work, not an answer. Read the other files and match on title, body, project and `answer.body`. Present matches with code, title and the accepted answer, quoted.
 There is no server-side text search; keep the matching in your own reading.
 
 ## Export
