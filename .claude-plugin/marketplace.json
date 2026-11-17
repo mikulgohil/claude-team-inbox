@@ -1,0 +1,14 @@
+{
+  "name": "team-inbox",
+  "description": "Team Inbox for Claude Code: hand questions and blockers to teammates from any Claude session, answered when they are free.",
+  "owner": {
+    "name": "Mikul Gohil"
+  },
+  "plugins": [
+    {
+      "name": "team-inbox",
+      "source": "./plugin",
+      "description": "Raise, answer and resolve asks between teammates' Claude Code sessions. Data lives in a shared claude.ai Artifact your team owns."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "team-inbox",
+  "private": true,
+  "description": "Team Inbox for Claude Code. Development scripts only; the plugin has no dependencies.",
+  "license": "MIT",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test plugin/test/inbox.test.mjs plugin/test/hook.test.mjs",
+    "validate": "claude plugin validate ./plugin && claude plugin validate ."
+  }
+}

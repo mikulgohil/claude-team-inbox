@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+*.log
+# local inbox backups and run folders never belong in the repo
+team-inbox-backup-*.json
+run-*/

@@ -1,0 +1,26 @@
+{
+  "name": "team-inbox",
+  "description": "Team Inbox for Claude Code. When your session is blocked on something only a teammate knows, file an ask to them; their Claude tells them at the start of their next session, and the answer flows back into yours. Asks live in a shared claude.ai Artifact your team owns: no server, no repo, no database to run.",
+  "author": {
+    "name": "Mikul Gohil"
+  },
+  "homepage": "https://github.com/mikulgohil/team-inbox",
+  "repository": "https://github.com/mikulgohil/team-inbox",
+  "license": "MIT",
+  "keywords": ["team", "inbox", "async", "blockers", "handoff", "artifacts"],
+  "userConfig": {
+    "inbox": {
+      "type": "string",
+      "title": "Inbox link",
+      "description": "The claude.ai link of your team's Team Inbox page (https://claude.ai/...). Your team lead gets it from /team-inbox:setup.",
+      "default": ""
+    },
+    "reminders": {
+      "type": "string",
+      "title": "Session-start check",
+      "description": "first-of-day checks the inbox in your first Claude Code session each day; every-session checks in every new session; off never checks automatically (use /team-inbox:inbox).",
+      "default": "first-of-day",
+      "options": ["first-of-day", "every-session", "off"]
+    }
+  }
+}

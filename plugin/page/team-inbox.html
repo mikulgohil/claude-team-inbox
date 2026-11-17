@@ -1,0 +1,1044 @@
+<title>Team Inbox</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a pigeonhole ledger. A rail of mail slots (views with counts) sits beside one column of rows; an ask opens as a full sheet in that column. Docs: ../reference/protocol.md */
+:root {
+  --paper: #EEF1F5;
+  --sheet: #FFFFFF;
+  --sheet-2: #F6F8FA;
+  --ink: #18202B;
+  --ink-2: #485365;
+  --ink-3: #626D7D;
+  --rule: #D5DBE3;
+  --stamp: #1F45B5;
+  --stamp-ink: #FFFFFF;
+  --stamp-soft: #E3E9FA;
+  --block: #B8322A;
+  --block-soft: #FBE6E3;
+  --ok: #23784A;
+  --ok-soft: #E1F2E8;
+  --wait: #8A5A08;
+  --wait-soft: #FAEFD9;
+  --shadow: 0 1px 2px rgba(24, 32, 43, .06), 0 8px 24px rgba(24, 32, 43, .08);
+  --font-text: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #10141A; --sheet: #171C24; --sheet-2: #1D232D; --ink: #E5E9EF; --ink-2: #B3BCC9; --ink-3: #8F9AAA;
+    --rule: #2A323E; --stamp: #86A2FF; --stamp-ink: #0E1530; --stamp-soft: #1E2A4A; --block: #FF8578; --block-soft: #3A1E1C;
+    --ok: #62C98E; --ok-soft: #173326; --wait: #E3B25A; --wait-soft: #33290F;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #10141A; --sheet: #171C24; --sheet-2: #1D232D; --ink: #E5E9EF; --ink-2: #B3BCC9; --ink-3: #8F9AAA;
+  --rule: #2A323E; --stamp: #86A2FF; --stamp-ink: #0E1530; --stamp-soft: #1E2A4A; --block: #FF8578; --block-soft: #3A1E1C;
+  --ok: #62C98E; --ok-soft: #173326; --wait: #E3B25A; --wait-soft: #33290F;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--font-text); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--sheet); }
+a { color: var(--stamp); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-size: .86em; letter-spacing: .01em; }
+.muted { color: var(--ink-3); }
+.gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* header */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--sheet); border-bottom: 1px solid var(--rule); }
+.top-in { display: flex; align-items: center; gap: 12px; padding-block: 10px; max-width: 1180px; margin: 0 auto; }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand b { font: 600 1.25rem/1 var(--font-head); letter-spacing: .01em; }
+.brand span { color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spacer { flex: 1; }
+.me { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: .9rem; }
+.me .av { width: 26px; height: 26px; }
+.av { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; background: var(--sheet-2); }
+.avail { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.avail.busy { background: var(--wait); }
+.avail.away { background: var(--ink-3); }
+
+/* buttons */
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); background: var(--sheet); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; font-weight: 500; font-size: .92rem; text-decoration: none; color: var(--ink); }
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--stamp); border-color: var(--stamp); color: var(--stamp-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--block); }
+.btn.small { padding: 4px 9px; font-size: .84rem; }
+.btn[disabled] { opacity: .55; cursor: not-allowed; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--stamp); cursor: pointer; font-weight: 500; }
+
+/* frame */
+.frame { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; max-width: 1180px; margin: 0 auto; padding-block: 24px 64px; }
+nav.rail { display: flex; flex-direction: column; gap: 2px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 72px); align-self: start; }
+.slot { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius); color: var(--ink-2); text-decoration: none; font-weight: 500; }
+.slot:hover { background: var(--sheet); color: var(--ink); }
+.slot[aria-current="page"] { background: var(--sheet); color: var(--ink); box-shadow: inset 3px 0 0 var(--stamp); }
+.slot .n { margin-left: auto; font: 500 .82rem var(--font-mono); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.slot .n.hot { color: var(--block); }
+.rail hr { border: 0; border-top: 1px solid var(--rule); margin: 10px 0; width: 100%; }
+main { min-width: 0; }
+@media (max-width: 760px) {
+  .frame { grid-template-columns: minmax(0, 1fr); gap: 14px; padding-block: 12px 48px; }
+  nav.rail { position: static; flex-direction: row; overflow-x: auto; gap: 4px; padding-bottom: 4px; }
+  .slot { white-space: nowrap; padding: 6px 10px; }
+  .rail hr { display: none; }
+  .me .who { display: none; }
+}
+
+/* view head */
+.vhead { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.vhead h1 { font: 600 1.7rem/1.1 var(--font-head); margin: 0; text-wrap: balance; letter-spacing: .005em; }
+.vhead p { margin: 4px 0 0; color: var(--ink-3); max-width: 62ch; }
+.vhead .spacer { min-width: 8px; }
+
+/* rows */
+.ledger { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
+.row { display: grid; grid-template-columns: 4px 74px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 14px 11px 0; border-top: 1px solid var(--rule); color: var(--ink); text-decoration: none; }
+.row:first-child { border-top: 0; }
+.row:hover { background: var(--sheet-2); }
+.stripe { align-self: stretch; background: transparent; }
+.kind-blocker .stripe { background: var(--block); }
+.code { color: var(--ink-3); padding-left: 10px; }
+.row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.row-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-meta { color: var(--ink-3); font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-side { display: flex; align-items: center; gap: 10px; }
+.age { color: var(--ink-3); min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--stamp); }
+.overdue .age { color: var(--block); font-weight: 500; }
+@media (max-width: 560px) {
+  .row { grid-template-columns: 4px minmax(0, 1fr) auto; }
+  .row .code { display: none; }
+  .row-main { padding-left: 10px; }
+  .row-side .chip { display: none; }
+}
+
+/* chips and tags */
+.chip { display: inline-flex; align-items: center; gap: 5px; font: 500 .74rem/1 var(--font-text); text-transform: uppercase; letter-spacing: .06em; padding: 4px 7px; border-radius: 3px; border: 1px solid var(--rule); color: var(--ink-2); white-space: nowrap; }
+.chip.open { border-color: var(--stamp); color: var(--stamp); }
+.chip.claimed { background: var(--stamp-soft); border-color: transparent; color: var(--stamp); }
+.chip.answered { background: var(--wait-soft); border-color: transparent; color: var(--wait); }
+.chip.resolved { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
+.chip.cancelled { color: var(--ink-3); text-decoration: line-through; }
+.tag { font: 600 .7rem/1 var(--font-text); text-transform: uppercase; letter-spacing: .07em; padding: 3px 5px; border-radius: 3px; margin-right: 8px; vertical-align: 1px; }
+.tag-block { background: var(--block-soft); color: var(--block); }
+.tag-kind { background: var(--sheet-2); color: var(--ink-2); }
+.tag-demo { background: var(--stamp-soft); color: var(--stamp); }
+
+/* states */
+.empty { padding: 36px 24px; text-align: left; background: var(--sheet); border: 1px dashed var(--rule); border-radius: var(--radius); color: var(--ink-2); }
+.empty b { display: block; font: 600 1.05rem var(--font-head); color: var(--ink); margin-bottom: 4px; }
+.notice { padding: 12px 14px; border-radius: var(--radius); background: var(--wait-soft); color: var(--ink); margin-bottom: 14px; border: 1px solid transparent; }
+.notice.bad { background: var(--block-soft); }
+.notice.info { background: var(--stamp-soft); }
+.skel { height: 58px; border-top: 1px solid var(--rule); background: linear-gradient(90deg, var(--sheet) 0%, var(--sheet-2) 50%, var(--sheet) 100%); background-size: 200% 100%; animation: shimmer 1.4s infinite linear; }
+.skel:first-child { border-top: 0; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+
+/* filters */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.filters input[type="search"] { flex: 1 1 240px; min-width: 0; }
+.field input, .field select, .field textarea, .filters input, .filters select { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); padding: 8px 10px; width: 100%; }
+.filters select { width: auto; }
+textarea { resize: vertical; min-height: 96px; line-height: 1.5; }
+
+/* detail */
+.sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius); padding: 22px 24px; }
+.sheet + .sheet { margin-top: 14px; }
+@media (max-width: 560px) { .sheet { padding: 16px; } }
+.back { display: inline-block; margin-bottom: 12px; font-weight: 500; text-decoration: none; }
+.dhead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.dtitle { font: 600 1.6rem/1.15 var(--font-head); margin: 0 0 14px; text-wrap: balance; }
+.meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 0 0 16px; font-size: .92rem; }
+.meta dt { color: var(--ink-3); }
+.meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.person { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; }
+.person .av { width: 20px; height: 20px; }
+.body { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; }
+.ctx { margin-top: 14px; padding: 10px 12px; background: var(--sheet-2); border-radius: var(--radius); font: .84rem/1.6 var(--font-mono); overflow-x: auto; color: var(--ink-2); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--rule); align-items: center; }
+.confirm { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 10px; background: var(--block-soft); border-radius: var(--radius); }
+.answer { border-left: 3px solid var(--ok); background: var(--ok-soft); padding: 12px 14px; border-radius: 0 var(--radius) var(--radius) 0; margin-top: 16px; }
+.answer h3 { margin: 0 0 6px; font: 600 .78rem var(--font-text); text-transform: uppercase; letter-spacing: .07em; color: var(--ok); }
+.thread h2, .sheet h2 { font: 600 1.05rem var(--font-head); margin: 0 0 12px; letter-spacing: .01em; }
+.reply { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-top: 1px solid var(--rule); }
+.reply:first-of-type { border-top: 0; padding-top: 0; }
+.reply.accepted { background: linear-gradient(90deg, var(--ok-soft), transparent 70%); }
+.reply-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-bottom: 4px; }
+.reply-head b { font-weight: 600; }
+.shots { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.shots img { max-height: 160px; border-radius: 4px; border: 1px solid var(--rule); }
+.history { margin-top: 14px; font-size: .88rem; color: var(--ink-2); }
+.history summary { cursor: pointer; font-weight: 500; color: var(--ink); }
+.history ol { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 4px; }
+
+/* forms */
+.form { display: grid; gap: 14px; }
+.field { display: grid; gap: 5px; min-width: 0; }
+.field > span { font-weight: 500; font-size: .9rem; }
+.field small { color: var(--ink-3); }
+.row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 560px) { .row2 { grid-template-columns: minmax(0, 1fr); } }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; margin: 0; }
+.seg legend { font-weight: 500; font-size: .9rem; margin-bottom: 5px; padding: 0; }
+.seg label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); border-radius: var(--radius); padding: 6px 10px; cursor: pointer; background: var(--sheet); }
+.seg label:has(input:checked) { border-color: var(--stamp); background: var(--stamp-soft); }
+.seg input { accent-color: var(--stamp); }
+.picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick { display: inline-flex; align-items: center; gap: 6px; background: var(--stamp-soft); color: var(--ink); border-radius: 999px; padding: 3px 4px 3px 4px; font-size: .88rem; }
+.pick .av { width: 20px; height: 20px; }
+.pick button { border: 0; background: none; cursor: pointer; color: var(--ink-2); padding: 0 6px; font-size: 1rem; line-height: 1; }
+.suggest { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); max-height: 220px; overflow: auto; }
+.suggest button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; background: none; text-align: left; cursor: pointer; }
+.suggest button:hover, .suggest button:focus-visible { background: var(--sheet-2); }
+.errors { color: var(--block); font-size: .9rem; margin: 0; padding-left: 18px; }
+.form-foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+.form-foot .muted { margin-right: auto; font-size: .86rem; }
+
+dialog { border: 1px solid var(--rule); border-radius: 10px; padding: 0; width: min(680px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); background: var(--sheet); color: var(--ink); box-shadow: var(--shadow); }
+dialog::backdrop { background: rgba(16, 20, 26, .45); }
+.dlg-in { padding: 20px 22px; overflow: auto; max-height: calc(100dvh - 26px); }
+.dlg-in h2 { font: 600 1.35rem var(--font-head); margin: 0 0 14px; }
+
+/* team and prefs */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; margin-bottom: 14px; }
+.stat { background: var(--sheet); padding: 14px 16px; }
+.stat b { display: block; font: 600 1.6rem/1.1 var(--font-head); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--ink-3); font-size: .84rem; }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.members { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.members th { text-align: left; font-weight: 500; color: var(--ink-3); padding: 0 10px 8px 0; font-size: .82rem; text-transform: uppercase; letter-spacing: .06em; }
+.members td { padding: 9px 10px 9px 0; border-top: 1px solid var(--rule); vertical-align: middle; }
+.scroll-x { overflow-x: auto; }
+.cmd { display: flex; gap: 8px; align-items: stretch; margin: 6px 0 14px; }
+.cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: 9px 11px; background: var(--sheet-2); border: 1px solid var(--rule); border-radius: var(--radius); font: .84rem var(--font-mono); }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
+.checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.checks label { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--rule); border-radius: var(--radius); padding: 6px 10px; background: var(--sheet); cursor: pointer; }
+.checks input { accent-color: var(--stamp); }
+.grouplist { display: grid; gap: 6px; margin-bottom: 10px; }
+.grouplist div { display: flex; align-items: center; gap: 10px; }
+
+#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--sheet); padding: 9px 14px; border-radius: var(--radius); font-weight: 500; box-shadow: var(--shadow); z-index: 20; max-width: calc(100vw - 32px); }
+.join { max-width: 640px; }
+.join h1 { font: 600 2rem/1.1 var(--font-head); margin: 0 0 8px; }
+.how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.how div { background: var(--sheet-2); border-radius: var(--radius); padding: 12px; font-size: .9rem; color: var(--ink-2); }
+.how b { display: block; color: var(--ink); font-family: var(--font-head); font-size: 1rem; margin-bottom: 2px; }
+@media (max-width: 640px) { .how { grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+<header class="top"><div class="top-in gutter" id="top"></div></header>
+<div class="frame gutter"><nav class="rail" id="nav" aria-label="Inbox views"></nav><main id="main" tabindex="-1"></main></div>
+<dialog id="composer" aria-labelledby="composer-title"></dialog>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module">
+// ------------------------------------------------------------------ constants
+// Keep SECRET_PATTERNS in sync with plugin/bin/inbox.mjs.
+const SECRET_PATTERNS = [
+  ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
+  ['AWS access key', /\b(AKIA|ASIA)[0-9A-Z]{16}\b/],
+  ['GitHub token', /\b(gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})\b/],
+  ['Anthropic key', /\bsk-ant-[A-Za-z0-9_-]{20,}/],
+  ['OpenAI-style key', /\bsk-(proj-)?[A-Za-z0-9_-]{24,}/],
+  ['Slack token', /\bxox[abprs]-[A-Za-z0-9-]{10,}/],
+  ['Google API key', /\bAIza[0-9A-Za-z_-]{35}\b/],
+  ['JSON Web Token', /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
+  ['Azure storage key', /AccountKey=[A-Za-z0-9+/=]{20,}/],
+  ['credentials in a URL', /\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:[^\s@/]{3,}@/i],
+  ['password or secret assignment', /\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret)\b\s*[:=]\s*["']?[^\s"']{8,}/i],
+];
+const KIND = { blocker: 'Blocker', question: 'Question', review: 'Review', fyi: 'FYI' };
+const STATUS = { open: 'Open', claimed: 'Claimed', answered: 'Answered', resolved: 'Resolved', cancelled: 'Cancelled' };
+const ACTIVE = ['open', 'claimed'];
+const VIEWS = { 'for-me': 'For me', waiting: 'Waiting on others', open: 'All open', answers: 'Answers', team: 'Team', prefs: 'Preferences' };
+const MARKETPLACE = 'mikulgohil/team-inbox';
+const DEFAULT_GROUPS = [['design', 'Design'], ['frontend', 'Frontend'], ['backend', 'Backend'], ['qa', 'QA'], ['pm', 'Project management']];
+const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const INBOX_LINK = /^https:\/\/claude\.ai\/\S+$/;
+
+// ------------------------------------------------------------------ state
+const S = {
+  db: null, user: null, assets: null, downloads: null, me: null, canWrite: null, isAdmin: false,
+  config: null, groups: [], members: new Map(), asks: [], state: null,
+  loaded: {}, errors: {}, slow: false, fatal: null,
+  route: { view: 'for-me', code: null }, mounted: { key: null, parts: null },
+  detail: { code: null }, filters: { q: '', kind: '', project: '', status: '' },
+  raf: 0, renderSeq: 0,
+};
+
+// ------------------------------------------------------------------ helpers
+const $ = (sel, root = document) => root.querySelector(sel);
+// replaceChildren() turns null into the text "null"; fill() drops empty values so conditional parts can be written inline.
+const fill = (el, ...kids) => el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false));
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props ?? {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else if (['value', 'checked', 'disabled', 'hidden', 'selected', 'required'].includes(k)) el[k] = v;
+    else el.setAttribute(k, v === true ? '' : String(v));
+  }
+  for (const kid of kids.flat(Infinity)) {
+    if (kid == null || kid === false) continue;
+    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+const nowIso = () => new Date().toISOString();
+const today = () => new Date().toLocaleDateString('en-CA');
+function newCode(n = 6) { const a = new Uint32Array(n); crypto.getRandomValues(a); return [...a].map((x) => ALPHA[x % ALPHA.length]).join(''); }
+const timeId = (iso) => `${iso.replace(/[-:.]/g, '')}-${newCode(4)}`;
+const uniq = (xs) => [...new Set(xs.filter(Boolean))];
+function age(iso) {
+  const ms = Date.now() - new Date(iso);
+  if (!Number.isFinite(ms) || ms < 60_000) return 'now';
+  const hrs = ms / 3_600_000;
+  if (hrs < 1) return `${Math.round(ms / 60_000)}m`;
+  if (hrs < 48) return `${Math.round(hrs)}h`;
+  return `${Math.round(hrs / 24)}d`;
+}
+const fmt = (iso) => { try { return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; } };
+const scan = (text) => SECRET_PATTERNS.filter(([, re]) => re.test(String(text ?? ''))).map(([label]) => label);
+function linkify(text) {
+  const out = [];
+  const re = /https?:\/\/[^\s<>"')]+/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    out.push(text.slice(last, m.index));
+    out.push(h('a', { href: m[0], target: '_blank', rel: 'noopener noreferrer', text: m[0] }));
+    last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  return out;
+}
+let toastTimer;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3200); }
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); toast('Copied'); }
+  catch { const code = btn?.previousElementSibling; if (code) { const r = document.createRange(); r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } toast('Press Cmd+C or Ctrl+C to copy the selected text'); }
+}
+const errText = (e) => ({
+  quota_exceeded: 'This inbox is full. An owner can archive old asks in Preferences.',
+  permission_denied: 'You do not have permission to change this. Ask the inbox owner for Contributor access.',
+  not_granted: 'You do not have permission to change this. Ask the inbox owner for Contributor access.',
+  resource_exhausted: 'Too many changes at once. Wait a few seconds and try again.',
+  unavailable: 'Could not reach the inbox. Check your connection and try again.',
+}[e?.code] ?? `Could not save: ${e?.message || e?.code || 'unknown error'}.`);
+
+// ------------------------------------------------------------------ people
+async function people(ids) {
+  const list = uniq(ids);
+  if (!list.length || !S.user) return {};
+  try { return await S.user.profiles(list); } catch { return {}; }
+}
+const nameOf = (ps, id) => (id && id === S.me?.id ? 'You' : (ps[id]?.name || 'Someone'));
+function person(ps, id) {
+  return h('span', { class: 'person' }, h('img', { class: 'av', src: ps[id]?.avatarUrl || '', alt: '' }), h('span', { text: nameOf(ps, id) }));
+}
+const groupName = (slug) => S.groups.find((g) => g.id === slug)?.name || slug;
+
+// ------------------------------------------------------------------ derived lists
+const myGroups = () => S.members.get(S.me?.id)?.groups ?? [];
+const isSnoozed = (a) => { const d = S.state?.snoozed?.[a.code]; return Boolean(d && d > today()); };
+const overdue = (a) => Boolean(a.neededBy && a.neededBy < today() && ACTIVE.includes(a.status));
+const byPriority = (x, y) => (x.kind === 'blocker' ? 0 : 1) - (y.kind === 'blocker' ? 0 : 1) || (overdue(y) - overdue(x)) || String(x.createdAt).localeCompare(String(y.createdAt));
+function forMe() {
+  const me = S.me.id, g = myGroups();
+  return S.asks.filter((a) => ACTIVE.includes(a.status) && a.fromId !== me && !isSnoozed(a)
+    && ((a.toIds ?? []).includes(me) || (a.status === 'open' && !(a.toIds ?? []).length && a.toGroup && g.includes(a.toGroup)))).sort(byPriority);
+}
+const waiting = () => S.asks.filter((a) => a.fromId === S.me.id && ['open', 'claimed', 'answered'].includes(a.status))
+  .sort((x, y) => (x.status === 'answered' ? 0 : 1) - (y.status === 'answered' ? 0 : 1) || byPriority(x, y));
+const allOpen = () => S.asks.filter((a) => ['open', 'claimed', 'answered'].includes(a.status));
+const answers = () => S.asks.filter((a) => a.status === 'resolved').sort((x, y) => String(y.resolvedAt ?? y.updatedAt).localeCompare(String(x.resolvedAt ?? x.updatedAt)));
+function unread(a) {
+  if (!a.lastActivityBy || a.lastActivityBy === S.me.id) return false;
+  const seen = S.state?.lastSeen?.[a.code];
+  return !seen || String(a.lastActivityAt) > String(seen);
+}
+
+// ------------------------------------------------------------------ writes
+const stateRef = () => S.db.doc(`data/users/${S.me.id}/state`);
+async function markSeen(code) {
+  if (!S.canWrite && S.canWrite !== null) return;
+  const lastSeen = { [code]: nowIso() };
+  try { if (S.state) await stateRef().update({ lastSeen }); else await stateRef().set({ uid: S.me.id, lastSeen, snoozed: {}, joinedAt: nowIso() }); } catch { /* unread dots are a convenience */ }
+}
+async function logEvent(code, type, detail = '') {
+  const at = nowIso();
+  await S.db.collection(`asks/${code}/events`).doc(timeId(at)).set({ actorId: S.me.id, type, detail, at });
+}
+async function patchAsk(a, patch, eventType, detail) {
+  const at = nowIso();
+  await S.db.doc(`asks/${a.code}`).update({ ...patch, updatedAt: at, lastActivityAt: at, lastActivityBy: S.me.id });
+  if (eventType) await logEvent(a.code, eventType, detail);
+}
+async function deleteAskDeep(code) {
+  for (const sub of ['replies', 'events']) {
+    const q = await S.db.collection(`asks/${code}/${sub}`).get();
+    for (const d of q.docs) await S.db.doc(`asks/${code}/${sub}/${d.id}`).delete();
+  }
+  await S.db.doc(`asks/${code}`).delete();
+}
+
+// ------------------------------------------------------------------ boot
+async function boot() {
+  window.addEventListener('hashchange', onRoute);
+  readRoute();
+  render();
+  if (!window.claude?.use) return fatal('Open this page on claude.ai to use the inbox. It keeps its data in claude.ai and needs your sign-in.');
+  const [db, user, assets, downloads] = await Promise.all(['db', 'user', 'assets', 'downloads'].map((n) => window.claude.use(n).catch(() => null)));
+  if (!db || !user) return fatal('Sign in to claude.ai with your organization account to use this inbox.');
+  Object.assign(S, { db, user, assets, downloads });
+  S.me = await user.me();
+  if (!S.me.id) return fatal('This inbox could not tell who you are. Open it while signed in to your organization\'s claude.ai account.');
+  S.isAdmin = Boolean(S.me.canEdit);
+  S.canWrite = await user.can('data.write');
+  subscribe();
+  S.loadTimer = setTimeout(() => { if (!S.loaded.asks) { S.slow = true; render(); } }, 10_000);
+  render();
+}
+function fatal(msg) { S.fatal = msg; render(); }
+function subscribe() {
+  const onErr = (what) => (e) => { S.errors[what] = e?.code || 'error'; S.loaded[what] = true; render(); };
+  S.db.doc('config/app').onSnapshot((s) => { S.config = s.exists ? s.data() : null; S.loaded.config = true; render(); }, onErr('config'));
+  S.db.collection('groups').onSnapshot((q) => {
+    S.groups = q.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    S.loaded.groups = true; render();
+  }, onErr('groups'));
+  S.db.collection('members').onSnapshot((q) => { S.members = new Map(q.docs.map((d) => [d.id, d.data()])); S.loaded.members = true; render(); }, onErr('members'));
+  S.db.collection('asks').orderBy('lastActivityAt', 'desc').limit(1000).onSnapshot((q) => {
+    S.asks = q.docs.map((d) => ({ ...d.data(), code: d.id }));
+    if (!q.metadata.fromCache) { S.loaded.asks = true; S.slow = false; clearTimeout(S.loadTimer); }
+    render();
+  }, onErr('asks'));
+  stateRef().onSnapshot((s) => { S.state = s.exists ? s.data() : null; S.loaded.state = true; render(); }, onErr('state'));
+}
+
+// ------------------------------------------------------------------ routing
+function readRoute() {
+  const hash = location.hash.replace(/^#/, '');
+  const m = hash.match(/^ask-([A-Z0-9]{4,12})$/);
+  S.route = m ? { view: 'ask', code: m[1] } : { view: VIEWS[hash] ? hash : 'for-me', code: null };
+  if (!m) S.lastList = S.route.view;
+}
+function onRoute() { readRoute(); render(); $('#main').focus({ preventScroll: true }); window.scrollTo({ top: 0 }); }
+const go = (hash) => { if (location.hash === `#${hash}`) onRoute(); else location.hash = hash; };
+
+// ------------------------------------------------------------------ render
+function render() { if (S.raf) return; S.raf = requestAnimationFrame(() => { S.raf = 0; doRender(); }); }
+function doRender() { renderTop(); renderNav(); renderMain(); }
+
+function renderTop() {
+  const top = $('#top');
+  const member = S.me?.id ? S.members.get(S.me.id) : null;
+  const avail = member?.availability ?? 'available';
+  fill(top, 
+    h('div', { class: 'brand' }, h('b', { text: 'Team Inbox' }), S.config?.name ? h('span', { text: S.config.name }) : null),
+    h('div', { class: 'spacer' }),
+    S.me?.id ? h('div', { class: 'me' },
+      h('span', { class: `avail ${avail}`, title: availabilityText(member) }),
+      h('img', { class: 'av', src: S.me.avatarUrl, alt: '' }),
+      h('span', { class: 'who', text: S.me.name || 'You' })) : null,
+    S.me?.id && member && S.canWrite !== false ? h('button', { class: 'btn primary', type: 'button', onclick: () => openComposer() }, 'New ask') : null,
+  );
+}
+function availabilityText(m) {
+  if (!m) return 'Not joined';
+  if (m.availability === 'away') return m.awayUntil ? `Away until ${m.awayUntil}` : 'Away';
+  if (m.availability === 'busy') return 'Heads-down';
+  return 'Available';
+}
+
+function renderNav() {
+  const nav = $('#nav');
+  const ready = S.loaded.asks && S.me?.id;
+  const counts = ready ? { 'for-me': forMe().length, waiting: waiting().length, open: allOpen().length, answers: answers().length } : {};
+  const hot = ready && forMe().some((a) => a.kind === 'blocker');
+  const current = S.route.view === 'ask' ? S.lastList : S.route.view;
+  const slot = (key) => h('a', { class: 'slot', href: `#${key}`, 'aria-current': current === key ? 'page' : null },
+    h('span', { text: VIEWS[key] }), counts[key] != null ? h('span', { class: `n${key === 'for-me' && hot ? ' hot' : ''}`, text: String(counts[key]) }) : null);
+  fill(nav, slot('for-me'), slot('waiting'), slot('open'), slot('answers'), h('hr'), slot('team'), slot('prefs'));
+}
+
+function mount(key, build) {
+  const main = $('#main');
+  if (S.mounted.key !== key) {
+    if (S.route.view !== 'ask' && S.detail.code) closeDetail();
+    S.mounted = { key, parts: build(main) };
+  }
+  return S.mounted.parts;
+}
+
+async function renderMain() {
+  const seq = ++S.renderSeq;
+  const main = $('#main');
+  if (S.fatal) { S.mounted = { key: 'fatal' }; return fill(main, h('div', { class: 'empty' }, h('b', { text: 'Team Inbox is not available here' }), S.fatal)); }
+  if (!S.me?.id || !S.loaded.members || !(S.loaded.asks || S.slow)) {
+    S.mounted = { key: 'loading' };
+    return fill(main, h('div', { class: 'vhead' }, h('h1', { text: VIEWS[S.route.view] ?? 'Ask' })), h('div', { class: 'ledger', 'aria-busy': 'true', 'aria-label': 'Loading asks' }, h('div', { class: 'skel' }), h('div', { class: 'skel' }), h('div', { class: 'skel' })));
+  }
+  const joined = S.members.has(S.me.id);
+  if (!joined && S.canWrite !== false && S.route.view !== 'team') return renderJoin(main);
+  const banner = [];
+  if (S.slow && !S.loaded.asks) banner.push(h('div', { class: 'notice bad' }, 'Can\'t reach the inbox right now. Your data is safe; reload in a minute.'));
+  if (S.errors.asks) banner.push(h('div', { class: 'notice bad' }, `The inbox stopped updating (${S.errors.asks}). Reload the page to reconnect.`));
+  if (S.canWrite === false) banner.push(h('div', { class: 'notice info' }, 'You can read this inbox but not change it. Ask the owner to share it with you as Contributor.'));
+  const view = S.route.view;
+  if (view === 'ask') return renderDetail(main, seq, banner);
+  if (view === 'team') return renderTeam(main, seq, banner);
+  if (view === 'prefs') return renderPrefs(main, banner);
+  return renderList(main, seq, view, banner);
+}
+
+// ------------------------------------------------------------------ list views
+const LIST_COPY = {
+  'for-me': ['For me', 'Asks assigned to you or waiting in your groups. Blockers first.', ['Nothing needs you', 'Asks assigned to you or your groups show up here.']],
+  waiting: ['Waiting on others', 'Asks you raised that are not resolved. Answered ones are at the top for you to check.', ['You have no open asks', 'When your Claude gets blocked on a teammate, it can file one. You can also use New ask.']],
+  open: ['All open', 'Everything open across the team.', ['No open asks across the team', 'New asks from anyone on the team appear here.']],
+  answers: ['Answers', 'Resolved asks with their accepted answers. Search here before you ask.', ['No answers yet', 'Resolved asks land here and become searchable.']],
+};
+function renderList(main, seq, view, banner) {
+  const [title, sub, empty] = LIST_COPY[view];
+  const parts = mount(`list:${view}`, (root) => {
+    const list = h('div');
+    const filters = view === 'open' || view === 'answers' ? buildFilters(view) : null;
+    fill(root, h('div', { id: 'banners' }), h('div', { class: 'vhead' }, h('div', null, h('h1', { text: title }), h('p', { text: sub }))), filters, list);
+    return { list, banners: root.querySelector('#banners'), filters };
+  });
+  fill(parts.banners, ...banner);
+  if (parts.filters) refreshFilterOptions(parts.filters);
+  let rows = view === 'for-me' ? forMe() : view === 'waiting' ? waiting() : view === 'open' ? allOpen() : answers();
+  const f = S.filters;
+  if (view === 'open' || view === 'answers') {
+    const q = f.q.trim().toLowerCase();
+    rows = rows.filter((a) => (!q || [a.code, a.title, a.body, a.project, a.answer?.body].some((t) => String(t ?? '').toLowerCase().includes(q)))
+      && (!f.kind || a.kind === f.kind) && (!f.project || a.project === f.project));
+    if (view === 'open') rows.sort(byPriority);
+  }
+  const ids = rows.flatMap((a) => [a.fromId, ...(a.toIds ?? []), a.claimedBy]);
+  people(ids).then((ps) => {
+    if (seq !== S.renderSeq) return;
+    if (!rows.length) {
+      const filtered = (view === 'open' || view === 'answers') && (f.q || f.kind || f.project);
+      fill(parts.list, h('div', { class: 'empty' }, h('b', { text: filtered ? 'Nothing matches these filters' : empty[0] }), filtered ? 'Clear the search or filters to see everything.' : empty[1]));
+      return;
+    }
+    fill(parts.list, h('div', { class: 'ledger' }, rows.map((a) => askRow(a, ps, view === 'for-me' || view === 'waiting'))));
+  });
+}
+function buildFilters(view) {
+  const q = h('input', { type: 'search', id: `q-${view}`, placeholder: view === 'answers' ? 'Search answers' : 'Search open asks', value: S.filters.q, 'aria-label': 'Search', oninput: (e) => { S.filters.q = e.target.value; render(); } });
+  const kind = h('select', { id: `kind-${view}`, 'aria-label': 'Kind', onchange: (e) => { S.filters.kind = e.target.value; render(); } },
+    h('option', { value: '', text: 'All kinds' }), Object.entries(KIND).map(([k, v]) => h('option', { value: k, text: v, selected: S.filters.kind === k })));
+  const project = h('select', { id: `project-${view}`, 'aria-label': 'Project', onchange: (e) => { S.filters.project = e.target.value; render(); } });
+  const wrap = h('div', { class: 'filters' }, q, kind, project);
+  wrap._project = project;
+  return wrap;
+}
+function refreshFilterOptions(wrap) {
+  const sel = wrap._project;
+  const projects = uniq(S.asks.map((a) => a.project)).sort();
+  const sig = projects.join('|');
+  if (sel._sig === sig) return;
+  sel._sig = sig;
+  fill(sel, h('option', { value: '', text: 'All projects' }), projects.map((p) => h('option', { value: p, text: p, selected: S.filters.project === p })));
+}
+function statusChip(a) {
+  const label = a.status === 'answered' && a.fromId === S.me.id ? 'Check answer' : STATUS[a.status] ?? a.status;
+  return h('span', { class: `chip ${a.status}`, text: label });
+}
+function toText(ps, a) {
+  const names = (a.toIds ?? []).map((id) => nameOf(ps, id));
+  if (!names.length && a.toGroup) return `${groupName(a.toGroup)} (unclaimed)`;
+  return [names.join(', '), a.toGroup ? groupName(a.toGroup) : ''].filter(Boolean).join(' · ');
+}
+function askRow(a, ps, showUnread) {
+  const meta = [`${nameOf(ps, a.fromId)} → ${toText(ps, a)}`, a.project, a.neededBy ? `needed by ${a.neededBy}` : ''].filter(Boolean).join(' · ');
+  return h('a', { class: `row kind-${a.kind}${overdue(a) ? ' overdue' : ''}`, href: `#ask-${a.code}` },
+    h('span', { class: 'stripe', 'aria-hidden': 'true' }),
+    h('span', { class: 'code mono', text: a.code }),
+    h('span', { class: 'row-main' },
+      h('span', { class: 'row-title' },
+        a.kind === 'blocker' ? h('span', { class: 'tag tag-block', text: 'Blocker' }) : a.kind !== 'question' ? h('span', { class: 'tag tag-kind', text: KIND[a.kind] }) : null,
+        a.demo ? h('span', { class: 'tag tag-demo', text: 'Example' }) : null,
+        a.title),
+      h('span', { class: 'row-meta', text: meta })),
+    h('span', { class: 'row-side' },
+      showUnread && unread(a) ? h('span', { class: 'dot', title: 'New activity', 'aria-label': 'New activity' }) : null,
+      statusChip(a),
+      h('span', { class: 'mono age', title: `Raised ${fmt(a.createdAt)}`, text: age(a.createdAt) })));
+}
+
+// ------------------------------------------------------------------ detail
+function closeDetail() { S.detail.unR?.(); S.detail.unE?.(); S.detail = { code: null }; }
+function openDetail(code) {
+  if (S.detail.code === code) return;
+  closeDetail();
+  S.detail = { code, replies: [], events: [], loadedR: false, confirm: null, reassign: false, files: [] };
+  S.detail.unR = S.db.collection(`asks/${code}/replies`).onSnapshot((q) => { S.detail.replies = q.docs.map((d) => ({ id: d.id, ...d.data() })).sort((x, y) => String(x.createdAt).localeCompare(String(y.createdAt))); S.detail.loadedR = true; render(); }, () => { S.detail.loadedR = true; render(); });
+  S.detail.unE = S.db.collection(`asks/${code}/events`).onSnapshot((q) => { S.detail.events = q.docs.map((d) => ({ id: d.id, ...d.data() })).sort((x, y) => String(x.at).localeCompare(String(y.at))); render(); }, () => {});
+  markSeen(code);
+}
+function renderDetail(main, seq, banner) {
+  const code = S.route.code;
+  const a = S.asks.find((x) => x.code === code);
+  if (!a) {
+    if (S.loaded.asks) { S.mounted = { key: 'missing' }; closeDetail(); return fill(main, ...banner, h('a', { class: 'back', href: `#${S.lastList ?? 'for-me'}`, text: '← Back' }), h('div', { class: 'empty' }, h('b', { text: 'This ask was removed or never existed' }), `No ask has the code ${code}. It may have been archived by the inbox owner.`)); }
+    return;
+  }
+  openDetail(code);
+  const parts = mount(`ask:${code}`, (root) => {
+    const head = h('div'); const thread = h('div'); const form = buildReplyForm(); const hist = h('div');
+    fill(root, h('div', { id: 'banners' }), h('a', { class: 'back', href: `#${S.lastList ?? 'for-me'}`, text: `← ${VIEWS[S.lastList ?? 'for-me']}` }),
+      h('article', { class: 'sheet' }, head), h('section', { class: 'sheet thread', 'aria-label': 'Replies' }, thread, form.el), hist);
+    return { head, thread, form, hist, banners: root.querySelector('#banners') };
+  });
+  fill(parts.banners, ...banner);
+  const d = S.detail;
+  people([a.fromId, ...(a.toIds ?? []), a.claimedBy, a.answer?.authorId, ...d.replies.map((r) => r.authorId), ...d.events.map((e) => e.actorId)]).then((ps) => {
+    if (seq !== S.renderSeq) return;
+    fill(parts.head, ...detailHead(a, ps));
+    fill(parts.thread, ...threadNodes(a, ps));
+    parts.form.sync(a);
+    fill(parts.hist, historyNode(ps));
+  });
+}
+function detailHead(a, ps) {
+  const ctx = a.context ?? {};
+  const ctxLines = [ctx.repo && `repo    ${ctx.repo}`, ctx.branch && `branch  ${ctx.branch}`, ...(ctx.files ?? []).map((f, i) => `${i ? '        ' : 'files   '}${f}`), ctx.note && `note    ${ctx.note}`].filter(Boolean);
+  const links = (a.links ?? []).filter((l) => /^https?:\/\//i.test(l));
+  const to = (a.toIds ?? []).length ? (a.toIds ?? []).map((id) => person(ps, id)) : [h('span', { text: `${groupName(a.toGroup)} (unclaimed)` })];
+  return [
+    h('div', { class: 'dhead' }, h('span', { class: 'mono muted', text: a.code }),
+      a.kind === 'blocker' ? h('span', { class: 'tag tag-block', text: 'Blocker' }) : h('span', { class: 'tag tag-kind', text: KIND[a.kind] ?? a.kind }),
+      statusChip(a), a.demo ? h('span', { class: 'tag tag-demo', text: 'Example' }) : null, isSnoozed(a) ? h('span', { class: 'chip', text: `Snoozed to ${S.state.snoozed[a.code]}` }) : null),
+    h('h1', { class: 'dtitle', text: a.title }),
+    h('dl', { class: 'meta' },
+      h('dt', { text: 'From' }), h('dd', null, person(ps, a.fromId), h('span', { class: 'muted', text: `${fmt(a.createdAt)} · ${age(a.createdAt)} ago` })),
+      h('dt', { text: 'To' }), h('dd', null, to, a.toGroup && (a.toIds ?? []).length ? h('span', { class: 'muted', text: `group ${groupName(a.toGroup)}` }) : null),
+      a.project ? [h('dt', { text: 'Project' }), h('dd', { text: a.project })] : null,
+      a.neededBy ? [h('dt', { text: 'Needed by' }), h('dd', { class: overdue(a) ? 'overdue' : '', text: `${a.neededBy}${overdue(a) ? ' (overdue)' : ''}` })] : null,
+      links.length ? [h('dt', { text: 'Links' }), h('dd', null, links.map((l) => h('div', null, h('a', { href: l, target: '_blank', rel: 'noopener noreferrer', text: l }))))] : null),
+    a.body ? h('div', { class: 'body' }, linkify(a.body)) : h('p', { class: 'muted', text: 'No details given.' }),
+    ctxLines.length ? h('pre', { class: 'ctx', 'aria-label': 'Context captured by Claude', text: ctxLines.join('\n') }) : null,
+    a.answer ? h('div', { class: 'answer' }, h('h3', { text: `Accepted answer from ${nameOf(ps, a.answer.authorId)}` }), h('div', { class: 'body' }, linkify(a.answer.body))) : null,
+    actionsNode(a, ps),
+  ];
+}
+function threadNodes(a, ps) {
+  const d = S.detail;
+  const nodes = [h('h2', { text: d.replies.length ? `Replies (${d.replies.length})` : 'Replies' })];
+  if (!d.loadedR) nodes.push(h('div', { class: 'skel', 'aria-label': 'Loading replies' }));
+  else if (!d.replies.length) nodes.push(h('p', { class: 'muted', text: a.fromId === S.me.id ? 'No replies yet. You will see the answer here and in your next Claude session.' : 'No replies yet. Answer below; the asker sees it in their next Claude session.' }));
+  for (const r of d.replies) {
+    const accepted = a.answer?.replyId === r.id;
+    const canAccept = a.fromId === S.me.id && r.authorId !== S.me.id && !accepted && !['resolved', 'cancelled'].includes(a.status) && S.canWrite !== false;
+    nodes.push(h('div', { class: `reply${accepted ? ' accepted' : ''}` },
+      h('img', { class: 'av', src: ps[r.authorId]?.avatarUrl || '', alt: '' }),
+      h('div', { style: 'min-width:0' },
+        h('div', { class: 'reply-head' }, h('b', { text: nameOf(ps, r.authorId) }), h('span', { class: 'muted mono', title: fmt(r.createdAt), text: age(r.createdAt) }),
+          r.source === 'claude-code' ? h('span', { class: 'muted', text: 'via Claude Code' }) : null, accepted ? h('span', { class: 'chip resolved', text: 'Accepted' }) : null),
+        h('div', { class: 'body' }, linkify(r.body ?? '')),
+        (r.assets ?? []).length ? h('div', { class: 'shots' }, r.assets.map((x) => h('a', { href: `/_blob/${x.id}`, target: '_blank', rel: 'noopener' }, h('img', { src: `/_blob/${x.id}`, alt: x.name || 'Screenshot' })))) : null,
+        canAccept ? h('div', { style: 'margin-top:8px' }, h('button', { class: 'btn small', type: 'button', onclick: () => act(a, 'accept', r) }, 'Accept this answer')) : null)));
+  }
+  return nodes;
+}
+function historyNode(ps) {
+  const ev = S.detail.events;
+  if (!ev.length) return h('span');
+  const label = { created: 'raised this ask', claimed: 'claimed it', answered: 'answered', reopened: 'reopened it', resolved: 'resolved it', cancelled: 'cancelled it', reassigned: 'reassigned it', edited: 'edited it' };
+  return h('details', { class: 'history sheet' }, h('summary', { text: `History (${ev.length})` }),
+    h('ol', null, ev.map((e) => h('li', null, h('span', { class: 'mono muted', text: `${fmt(e.at)}  ` }), `${nameOf(ps, e.actorId)} ${label[e.type] ?? e.type}${e.detail ? ` (${e.detail})` : ''}`))));
+}
+function actionsNode(a, ps) {
+  if (S.canWrite === false) return null;
+  const me = S.me.id, asker = a.fromId === me, active = ACTIVE.includes(a.status) || a.status === 'answered';
+  const assignee = (a.toIds ?? []).includes(me);
+  const groupOpen = a.status === 'open' && !(a.toIds ?? []).length && a.toGroup;
+  const d = S.detail;
+  const box = h('div', { class: 'actions' });
+  if (d.confirm) {
+    const [label, run] = d.confirm === 'cancel' ? ['Cancel this ask? The asker and assignees will see it as cancelled.', () => act(a, 'cancel')] : ['Delete this ask and its replies for everyone? This cannot be undone.', async () => { try { await deleteAskDeep(a.code); toast(`Deleted ${a.code}`); go(S.lastList ?? 'for-me'); } catch (e) { toast(errText(e)); } }];
+    box.append(h('div', { class: 'confirm' }, h('span', { text: label }), h('button', { class: 'btn small danger', type: 'button', onclick: run }, d.confirm === 'cancel' ? 'Yes, cancel it' : 'Yes, delete'), h('button', { class: 'btn small', type: 'button', onclick: () => { d.confirm = null; render(); } }, 'Keep it')));
+    return box;
+  }
+  if (d.reassign) { box.append(reassignForm(a, ps)); return box; }
+  if (groupOpen && !asker) box.append(h('button', { class: 'btn primary small', type: 'button', onclick: () => act(a, 'claim') }, 'Claim this ask'));
+  if (asker && a.status === 'answered') box.append(h('button', { class: 'btn small', type: 'button', onclick: () => act(a, 'resolve') }, 'Mark resolved'));
+  if (active && (asker || assignee || S.isAdmin)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => { d.reassign = true; render(); } }, 'Reassign'));
+  if (active && !asker && (assignee || groupOpen)) {
+    if (isSnoozed(a)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => snooze(a, null) }, 'Unsnooze'));
+    else {
+      const date = h('input', { type: 'date', id: `snooze-${a.code}`, min: today(), 'aria-label': 'Snooze until', class: 'btn small' });
+      box.append(h('span', { class: 'confirm', style: 'background:var(--sheet-2)' }, h('label', { for: date.id, text: 'Snooze until' }), date, h('button', { class: 'btn small', type: 'button', onclick: () => date.value ? snooze(a, date.value) : toast('Pick a date first') }, 'Snooze')));
+    }
+  }
+  if (['resolved', 'cancelled'].includes(a.status)) box.append(h('button', { class: 'btn small', type: 'button', onclick: () => act(a, 'reopen') }, 'Reopen'));
+  if (active && (asker || S.isAdmin)) box.append(h('button', { class: 'btn small danger', type: 'button', onclick: () => { d.confirm = 'cancel'; render(); } }, 'Cancel ask'));
+  if (S.isAdmin) box.append(h('button', { class: 'btn small danger', type: 'button', onclick: () => { d.confirm = 'delete'; render(); } }, 'Delete'));
+  return box.childElementCount ? box : null;
+}
+function reassignForm(a, ps) {
+  const memberIds = [...S.members.keys()].filter((id) => id !== a.fromId);
+  const sel = h('select', { id: `re-person-${a.code}`, 'aria-label': 'Person' }, h('option', { value: '', text: 'Nobody (group only)' }));
+  people(memberIds).then((p2) => { for (const id of memberIds) sel.append(h('option', { value: id, text: nameOf(p2, id), selected: (a.toIds ?? [])[0] === id })); });
+  const grp = h('select', { id: `re-group-${a.code}`, 'aria-label': 'Group' }, h('option', { value: '', text: 'No group' }), S.groups.map((g) => h('option', { value: g.id, text: g.name, selected: a.toGroup === g.id })));
+  return h('div', { class: 'confirm', style: 'background:var(--sheet-2)' }, h('span', { text: 'Reassign to' }), sel, grp,
+    h('button', { class: 'btn small primary', type: 'button', onclick: async () => {
+      if (!sel.value && !grp.value) return toast('Choose a person or a group');
+      S.detail.reassign = false;
+      await act(a, 'reassign', { to: sel.value ? [sel.value] : [], group: grp.value || null });
+    } }, 'Reassign'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => { S.detail.reassign = false; render(); } }, 'Cancel'));
+}
+async function act(a, action, extra) {
+  const me = S.me.id, at = nowIso();
+  try {
+    if (action === 'claim') await patchAsk(a, { status: 'claimed', claimedBy: me, toIds: uniq([...(a.toIds ?? []), me]), participants: uniq([...(a.participants ?? []), me]) }, 'claimed');
+    else if (action === 'resolve') await patchAsk(a, { status: 'resolved', resolvedAt: at }, 'resolved');
+    else if (action === 'accept') await patchAsk(a, { status: 'resolved', resolvedAt: at, answer: { replyId: extra.id, authorId: extra.authorId, body: String(extra.body).slice(0, 4000) } }, 'resolved', `accepted reply ${extra.id}`);
+    else if (action === 'reopen') await patchAsk(a, { status: 'open', resolvedAt: null, answer: null }, 'reopened');
+    else if (action === 'cancel') { S.detail.confirm = null; await patchAsk(a, { status: 'cancelled' }, 'cancelled'); }
+    else if (action === 'reassign') await patchAsk(a, { status: 'open', claimedBy: null, toIds: extra.to, toGroup: extra.group, participants: uniq([...(a.participants ?? []), ...extra.to]) }, 'reassigned');
+    toast({ claim: 'Claimed. It is yours now.', resolve: 'Resolved', accept: 'Answer accepted. The ask is resolved.', reopen: 'Reopened', cancel: 'Cancelled', reassign: 'Reassigned' }[action]);
+    markSeen(a.code);
+  } catch (e) { toast(errText(e)); render(); }
+}
+async function snooze(a, date) {
+  try {
+    if (S.state) await stateRef().update({ snoozed: { [a.code]: date } });
+    else await stateRef().set({ uid: S.me.id, lastSeen: {}, snoozed: { [a.code]: date }, joinedAt: nowIso() });
+    toast(date ? `Snoozed until ${date}` : 'Unsnoozed');
+  } catch (e) { toast(errText(e)); }
+}
+
+function buildReplyForm() {
+  const ta = h('textarea', { id: 'reply-body', rows: 4, placeholder: 'Write your answer. Paste links as they are.', 'aria-label': 'Your reply' });
+  const errors = h('ul', { class: 'errors', hidden: true });
+  const hint = h('span', { class: 'muted' });
+  const files = h('input', { type: 'file', id: 'reply-files', accept: 'image/*', multiple: true, hidden: true });
+  const fileLabel = h('span', { class: 'muted' });
+  const attach = h('button', { class: 'btn small', type: 'button', onclick: () => files.click() }, 'Attach screenshots');
+  files.addEventListener('change', () => { const n = files.files.length; fileLabel.textContent = n ? `${n} image${n > 1 ? 's' : ''} attached` : ''; });
+  const post = h('button', { class: 'btn primary', type: 'submit' }, 'Post reply');
+  let current = null;
+  const form = h('form', { class: 'form', style: 'margin-top:16px', onsubmit: async (e) => {
+    e.preventDefault();
+    const a = current; if (!a) return;
+    const body = ta.value.trim();
+    const problems = [];
+    if (!body) problems.push('Write a reply first.');
+    const secrets = scan(body);
+    if (secrets.length) problems.push(`This looks like it contains a secret (${secrets.join(', ')}). Remove it before posting.`);
+    const picked = [...files.files];
+    if (picked.length > 5) problems.push('Attach at most 5 images.');
+    if (picked.some((f) => f.size > 10 * 1024 * 1024)) problems.push('Each image must be under 10 MB.');
+    fill(errors, ...problems.map((p) => h('li', { text: p }))); errors.hidden = !problems.length;
+    if (problems.length) return;
+    post.disabled = true; post.textContent = 'Posting...';
+    try {
+      const assets = [];
+      for (const f of picked) { const up = await S.assets.upload(f); assets.push({ id: up.id, name: f.name, type: up.contentType }); }
+      const at = nowIso(), me = S.me.id;
+      const replyId = timeId(at);
+      await S.db.doc(`asks/${a.code}/replies/${replyId}`).set({ schema: 1, askCode: a.code, authorId: me, body, assets, createdAt: at, source: 'page' });
+      const patch = { participants: uniq([...(a.participants ?? []), me]) };
+      let ev = null;
+      if (me !== a.fromId && ACTIVE.includes(a.status)) { patch.status = 'answered'; if (!a.firstAnswerAt) patch.firstAnswerAt = at; ev = 'answered'; }
+      else if (me === a.fromId && a.status === 'answered') { patch.status = 'open'; ev = 'reopened'; }
+      await patchAsk(a, patch, ev, ev === 'reopened' ? 'follow-up question' : '');
+      ta.value = ''; files.value = ''; fileLabel.textContent = '';
+      toast(ev === 'answered' ? 'Reply posted. The asker will see it in their next Claude session.' : 'Reply posted');
+      markSeen(a.code);
+    } catch (err) { fill(errors, h('li', { text: errText(err) })); errors.hidden = false; }
+    finally { post.disabled = false; post.textContent = 'Post reply'; }
+  } }, h('label', { class: 'field' }, h('span', { text: 'Your reply' }), ta), errors,
+    h('div', { class: 'form-foot' }, hint, files, attach, fileLabel, post));
+  return {
+    el: form,
+    sync(a) {
+      current = a;
+      const closed = ['resolved', 'cancelled'].includes(a.status);
+      form.hidden = closed || S.canWrite === false;
+      attach.hidden = !S.assets;
+      hint.textContent = a.fromId === S.me.id && a.status === 'answered' ? 'Replying reopens the ask as a follow-up.' : a.fromId === S.me.id ? 'Add detail or a follow-up.' : 'Your reply marks the ask as answered.';
+    },
+  };
+}
+
+// ------------------------------------------------------------------ composer
+function openComposer(prefill = {}) {
+  const dlg = $('#composer');
+  const picked = new Map();
+  const errors = h('ul', { class: 'errors', hidden: true });
+  const pickList = h('div', { class: 'picks' });
+  const suggest = h('div', { class: 'suggest', hidden: true, role: 'listbox', 'aria-label': 'People' });
+  const who = h('input', { type: 'text', id: 'c-to', placeholder: 'Type a name', autocomplete: 'off', 'aria-describedby': 'c-to-help' });
+  const showHits = (hits) => {
+    const list = hits.filter((p) => p.id !== S.me.id && !picked.has(p.id));
+    fill(suggest, ...list.map((p) => h('button', { type: 'button', role: 'option', onclick: () => { picked.set(p.id, p); who.value = ''; suggest.hidden = true; drawPicks(); who.focus(); } }, h('img', { class: 'av', src: p.avatarUrl, alt: '' }), h('span', { text: p.name }), p.guest ? h('span', { class: 'muted', text: 'guest' }) : null)));
+    suggest.hidden = !list.length;
+  };
+  const drawPicks = () => fill(pickList, ...[...picked.values()].map((p) => h('span', { class: 'pick' }, h('img', { class: 'av', src: p.avatarUrl, alt: '' }), h('span', { text: p.name }), h('button', { type: 'button', 'aria-label': `Remove ${p.name}`, onclick: () => { picked.delete(p.id); drawPicks(); } }, '×'))));
+  who.addEventListener('focus', async () => showHits(await S.user.search('')));
+  who.addEventListener('input', async () => showHits(await S.user.search(who.value)));
+  who.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !suggest.hidden) { e.stopPropagation(); e.preventDefault(); suggest.hidden = true; } });
+  const group = h('select', { id: 'c-group' }, h('option', { value: '', text: 'No group' }), S.groups.map((g) => h('option', { value: g.id, text: g.name })));
+  const kinds = h('fieldset', { class: 'seg' }, h('legend', { text: 'Kind' }), Object.entries(KIND).map(([k, v]) => h('label', null, h('input', { type: 'radio', name: 'c-kind', value: k, checked: (prefill.kind ?? 'question') === k }), v)));
+  const title = h('input', { type: 'text', id: 'c-title', maxlength: 120, required: true, value: prefill.title ?? '', placeholder: 'One line: what do you need to know?' });
+  const count = h('small', { text: `${title.value.length}/120` });
+  title.addEventListener('input', () => { count.textContent = `${title.value.length}/120`; });
+  const body = h('textarea', { id: 'c-body', rows: 5, placeholder: 'What you tried, what you are stuck on, what a good answer looks like.' });
+  const projects = uniq(S.asks.map((a) => a.project)).sort();
+  const project = h('input', { type: 'text', id: 'c-project', list: 'c-projects', maxlength: 60, placeholder: 'e.g. storefront' });
+  const dl = h('datalist', { id: 'c-projects' }, projects.map((p) => h('option', { value: p })));
+  const needed = h('input', { type: 'date', id: 'c-needed', min: today() });
+  const links = h('textarea', { id: 'c-links', rows: 2, placeholder: 'One link per line (Figma, Jira, PR)' });
+  const send = h('button', { class: 'btn primary', type: 'submit' }, 'Send ask');
+  const form = h('form', { class: 'form', onsubmit: async (e) => {
+    e.preventDefault();
+    const kind = form.querySelector('input[name="c-kind"]:checked')?.value ?? 'question';
+    const linkList = links.value.split('\n').map((s) => s.trim()).filter(Boolean);
+    const problems = [];
+    if (!title.value.trim()) problems.push('Add a one-line title.');
+    if (!picked.size && !group.value) problems.push('Choose at least one person or a group.');
+    if (linkList.some((l) => !/^https?:\/\/\S+$/i.test(l))) problems.push('Links must start with http:// or https://.');
+    if (linkList.length > 10) problems.push('At most 10 links.');
+    const secrets = scan(`${title.value}\n${body.value}\n${links.value}`);
+    if (secrets.length) problems.push(`This looks like it contains a secret (${secrets.join(', ')}). Remove it before sending.`);
+    fill(errors, ...problems.map((p) => h('li', { text: p }))); errors.hidden = !problems.length;
+    if (problems.length) return;
+    send.disabled = true; send.textContent = 'Sending...';
+    const at = nowIso(), me = S.me.id, code = newCode(), toIds = [...picked.keys()];
+    const ask = { schema: 1, code, fromId: me, toIds, toGroup: group.value || null, kind, title: title.value.trim(), body: body.value.trim(), project: project.value.trim(), links: linkList,
+      context: { repo: '', branch: '', files: [], note: '' }, neededBy: needed.value || null, status: 'open', claimedBy: null, answer: null, firstAnswerAt: null, resolvedAt: null,
+      participants: uniq([me, ...toIds]), createdAt: at, updatedAt: at, lastActivityAt: at, lastActivityBy: me, source: 'page', demo: false };
+    try {
+      await S.db.doc(`asks/${code}`).set(ask);
+      await logEvent(code, 'created');
+      dlg.close(); toast(`Ask ${code} sent`); go(`ask-${code}`);
+    } catch (err) { fill(errors, h('li', { text: errText(err) })); errors.hidden = false; send.disabled = false; send.textContent = 'Send ask'; }
+  } },
+    h('div', { class: 'field' }, h('label', { for: 'c-to' }, h('span', { text: 'To' })), pickList, who, suggest, h('small', { id: 'c-to-help', text: 'People from your organization. Add a group too, or use a group alone so anyone in it can claim the ask.' })),
+    h('div', { class: 'row2' }, h('label', { class: 'field' }, h('span', { text: 'Group' }), group), kinds),
+    h('label', { class: 'field' }, h('span', { text: 'Title' }), title, count),
+    h('label', { class: 'field' }, h('span', { text: 'Details' }), body),
+    h('div', { class: 'row2' }, h('label', { class: 'field' }, h('span', { text: 'Project' }), project, dl), h('label', { class: 'field' }, h('span', { text: 'Needed by' }), needed)),
+    h('label', { class: 'field' }, h('span', { text: 'Links' }), links),
+    errors,
+    h('div', { class: 'form-foot' }, h('span', { class: 'muted', text: 'Tip: from Claude Code, /team-inbox:ask adds the repo, branch and files for you.' }), h('button', { class: 'btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), send));
+  fill(dlg, h('div', { class: 'dlg-in' }, h('h2', { id: 'composer-title', text: 'New ask' }), form));
+  dlg.showModal();
+  title.focus();
+}
+
+// ------------------------------------------------------------------ join
+function installCommand() {
+  const link = S.config?.inboxUrl;
+  return `claude plugin install team-inbox --marketplace ${MARKETPLACE} --config inbox=${link || '<inbox link>'}`;
+}
+function cmdBlock(text, id) {
+  const code = h('code', { id, text });
+  return h('div', { class: 'cmd' }, code, h('button', { class: 'btn small', type: 'button', onclick: (e) => copy(text, e.currentTarget) }, 'Copy'));
+}
+function renderJoin(main) {
+  const parts = mount('join', (root) => {
+    const chosen = new Set();
+    const groupsBox = h('div', { class: 'checks' });
+    const drawGroups = () => fill(groupsBox, ...(S.groups.length ? S.groups : DEFAULT_GROUPS.map(([id, name]) => ({ id, name, pending: true }))).map((g) =>
+      h('label', null, h('input', { type: 'checkbox', value: g.id, checked: chosen.has(g.id), onchange: (e) => { e.target.checked ? chosen.add(g.id) : chosen.delete(g.id); } }), g.name)));
+    drawGroups();
+    const errors = h('ul', { class: 'errors', hidden: true });
+    const btn = h('button', { class: 'btn primary', type: 'submit' }, 'Join this inbox');
+    fill(root, h('section', { class: 'join' },
+      h('h1', { text: S.config?.name ? `Join ${S.config.name}` : 'Join Team Inbox' }),
+      h('p', { class: 'muted', text: 'One place for questions and blockers between teammates. Your Claude tells you what is waiting when you start work, and your answers flow back into the asker\'s session.' }),
+      h('div', { class: 'how' },
+        h('div', null, h('b', { text: 'Ask' }), 'Claude files a question with the repo, branch and files you were in.'),
+        h('div', null, h('b', { text: 'Answer' }), 'Reply from Claude Code or from this page, when you are free.'),
+        h('div', null, h('b', { text: 'Resume' }), 'The asker\'s next session picks up the answer and carries on.')),
+      h('form', { class: 'form sheet', onsubmit: async (e) => {
+        e.preventDefault();
+        btn.disabled = true;
+        try {
+          const at = nowIso();
+          if (!S.groups.length && S.isAdmin) for (const [id, name] of DEFAULT_GROUPS) await S.db.doc(`groups/${id}`).set({ name, description: '', createdAt: at });
+          await S.db.doc(`members/${S.me.id}`).set({ uid: S.me.id, groups: [...chosen], availability: 'available', awayUntil: null, joinedAt: at, updatedAt: at });
+          if (!S.state) await stateRef().set({ uid: S.me.id, lastSeen: {}, snoozed: {}, joinedAt: at });
+          toast('You joined the inbox');
+          S.mounted.key = null; render();
+        } catch (err) { fill(errors, h('li', { text: errText(err) })); errors.hidden = false; btn.disabled = false; }
+      } },
+        h('div', { class: 'field' }, h('span', { text: 'Your groups' }), groupsBox, h('small', { text: S.groups.length ? 'Asks sent to a group reach everyone in it until someone claims them.' : S.isAdmin ? 'These starter groups are created when you join. You can change them in Preferences.' : 'The inbox owner has not set up groups yet; you can pick them later in Preferences.' })),
+        errors, h('div', { class: 'form-foot' }, btn)),
+      h('section', { class: 'sheet' }, h('h2', { text: 'Then connect your Claude Code' }),
+        h('p', { class: 'muted', text: 'Run this once in a terminal. It installs the plugin for every project and connects it to this inbox.' }),
+        cmdBlock(installCommand(), 'join-cmd'),
+        S.config?.inboxUrl ? null : h('p', { class: 'muted', text: 'The inbox link is not set yet. The person who set up this inbox can add it in Preferences, or run /team-inbox:setup.' }))));
+    return { drawGroups, sig: S.groups.map((g) => g.id).join('|') };
+  });
+  // Groups can arrive after the form is drawn; redraw only when the set changes (ticked boxes are kept in `chosen`).
+  const sig = S.groups.map((g) => g.id).join('|');
+  if (parts.sig !== sig) { parts.sig = sig; parts.drawGroups(); }
+}
+
+// ------------------------------------------------------------------ team
+function renderTeam(main, seq, banner) {
+  const parts = mount('team', (root) => {
+    const stats = h('div'); const members = h('div'); const invite = h('div');
+    fill(root, h('div', { id: 'banners' }), h('div', { class: 'vhead' }, h('div', null, h('h1', { text: 'Team' }), h('p', { text: 'Who is in this inbox, how fast asks get answered, and how to bring people in.' }))), stats, h('section', { class: 'sheet' }, h('h2', { text: 'Members' }), members), invite);
+    return { stats, members, invite, banners: root.querySelector('#banners') };
+  });
+  fill(parts.banners, ...banner);
+  const open = S.asks.filter((a) => ACTIVE.includes(a.status));
+  const oldest = open.reduce((o, a) => (!o || a.createdAt < o.createdAt ? a : o), null);
+  const month = Date.now() - 30 * 86_400_000;
+  const waits = S.asks.filter((a) => a.firstAnswerAt && new Date(a.createdAt) > month).map((a) => (new Date(a.firstAnswerAt) - new Date(a.createdAt)) / 3_600_000).sort((x, y) => x - y);
+  const median = waits.length ? waits[Math.floor(waits.length / 2)] : null;
+  const fmtH = (h0) => (h0 == null ? '–' : h0 < 1 ? `${Math.max(1, Math.round(h0 * 60))}m` : h0 < 48 ? `${Math.round(h0)}h` : `${Math.round(h0 / 24)}d`);
+  fill(parts.stats, h('div', { class: 'stats' },
+    h('div', { class: 'stat' }, h('b', { text: String(open.length) }), h('span', { text: 'Open asks' })),
+    h('div', { class: 'stat' }, h('b', { style: open.some((a) => a.kind === 'blocker') ? 'color:var(--block)' : '', text: String(open.filter((a) => a.kind === 'blocker').length) }), h('span', { text: 'Open blockers' })),
+    h('div', { class: 'stat' }, h('b', { text: oldest ? age(oldest.createdAt) : '–' }), h('span', { text: 'Oldest open ask' })),
+    h('div', { class: 'stat' }, h('b', { text: fmtH(median) }), h('span', { text: 'Median time to first answer (30 days)' }))));
+  const ids = [...S.members.keys()];
+  people(ids).then((ps) => {
+    if (seq !== S.renderSeq) return;
+    if (ids.length <= 1) fill(parts.members, h('p', { class: 'muted', text: 'Only you so far. Share this page with your organization as Contributor so others can join.' }));
+    if (ids.length) {
+      const table = h('table', { class: 'members' }, h('thead', null, h('tr', null, ['Person', 'Groups', 'Availability', 'Open for them'].map((t) => h('th', { text: t })))),
+        h('tbody', null, ids.sort((x, y) => nameOf(ps, x).localeCompare(nameOf(ps, y))).map((id) => {
+          const m = S.members.get(id);
+          const load = S.asks.filter((a) => ACTIVE.includes(a.status) && (a.toIds ?? []).includes(id)).length;
+          return h('tr', null, h('td', null, person(ps, id)), h('td', { text: (m.groups ?? []).map(groupName).join(', ') || '–' }),
+            h('td', null, h('span', { class: `avail ${m.availability ?? 'available'}`, style: 'display:inline-block;margin-right:6px' }), availabilityText(m)), h('td', { class: 'mono', text: String(load) }));
+        })));
+      fill(parts.members, ...(ids.length <= 1 ? [parts.members.firstChild] : []), h('div', { class: 'scroll-x' }, table));
+    }
+  });
+  fill(parts.invite, h('section', { class: 'sheet', style: 'margin-top:14px' }, h('h2', { text: 'Invite teammates' }),
+    h('ol', { class: 'steps' },
+      h('li', null, 'Share this page with your organization as ', h('b', { text: 'Contributor' }), ' (Share menu, top right). Viewers can read but not reply.'),
+      h('li', null, 'Each teammate runs this once in a terminal:', cmdBlock(installCommand(), 'team-cmd')),
+      h('li', null, 'Inside Claude Code or the Desktop Code tab instead:', cmdBlock(`/plugin marketplace add ${MARKETPLACE}`, 'team-cmd-2'), cmdBlock(`/plugin install team-inbox@team-inbox`, 'team-cmd-3'), cmdBlock(`/team-inbox:join ${S.config?.inboxUrl || '<inbox link>'}`, 'team-cmd-4')),
+      h('li', null, 'They open this page once and press Join, so their Claude knows who they are.'))));
+}
+
+// ------------------------------------------------------------------ prefs
+function renderPrefs(main, banner) {
+  const parts = mount('prefs', (root) => {
+    const m = S.members.get(S.me.id) ?? {};
+    const status = h('fieldset', { class: 'seg' }, h('legend', { text: 'Availability' }),
+      [['available', 'Available'], ['busy', 'Heads-down'], ['away', 'Away']].map(([v, l]) => h('label', null, h('input', { type: 'radio', name: 'p-avail', value: v, checked: (m.availability ?? 'available') === v }), l)));
+    const until = h('input', { type: 'date', id: 'p-until', value: m.awayUntil ?? '', min: today() });
+    const groupBox = h('div', { class: 'checks' });
+    const mine = new Set(m.groups ?? []);
+    const drawMine = () => fill(groupBox, ...(S.groups.length ? S.groups.map((g) => h('label', null, h('input', { type: 'checkbox', value: g.id, checked: mine.has(g.id), onchange: (e) => { e.target.checked ? mine.add(g.id) : mine.delete(g.id); } }), g.name)) : [h('span', { class: 'muted', text: 'No groups yet.' })]));
+    drawMine();
+    const saveMe = h('button', { class: 'btn primary', type: 'submit' }, 'Save');
+    const meForm = h('form', { class: 'form sheet', onsubmit: async (e) => {
+      e.preventDefault();
+      const availability = meForm.querySelector('input[name="p-avail"]:checked')?.value ?? 'available';
+      saveMe.disabled = true;
+      try { await S.db.doc(`members/${S.me.id}`).update({ availability, awayUntil: availability === 'away' ? until.value || null : null, groups: [...mine], updatedAt: nowIso() }); toast('Saved'); }
+      catch (err) { toast(errText(err)); } finally { saveMe.disabled = false; }
+    } }, h('h2', { text: 'You' }), status, h('label', { class: 'field' }, h('span', { text: 'Away until (optional)' }), until), h('div', { class: 'field' }, h('span', { text: 'Your groups' }), groupBox), h('div', { class: 'form-foot' }, saveMe));
+    const snoozed = h('div');
+    const claudeBox = h('section', { class: 'sheet' }, h('h2', { text: 'Your Claude sessions' }),
+      h('p', { class: 'muted', text: 'Claude checks this inbox in your first session each day by default. Change it to every session or off in Claude Code:' }),
+      cmdBlock('/plugin configure team-inbox@team-inbox', 'p-cfg'));
+    const admin = h('div');
+    fill(root, h('div', { id: 'banners' }), h('div', { class: 'vhead' }, h('div', null, h('h1', { text: 'Preferences' }), h('p', { text: 'Your availability and groups, and settings for the whole inbox if you own it.' }))), meForm, snoozed, claudeBox, admin);
+    return { snoozed, admin, drawMine, banners: root.querySelector('#banners') };
+  });
+  fill(parts.banners, ...banner);
+  const sn = Object.entries(S.state?.snoozed ?? {}).filter(([, d]) => d && d > today());
+  fill(parts.snoozed, sn.length ? h('section', { class: 'sheet' }, h('h2', { text: 'Snoozed asks' }), sn.map(([code, d]) => {
+    const a = S.asks.find((x) => x.code === code);
+    return h('div', { class: 'reply-head' }, h('a', { href: `#ask-${code}`, class: 'mono', text: code }), h('span', { text: a?.title ?? 'Ask' }), h('span', { class: 'muted', text: `until ${d}` }), a ? h('button', { class: 'linkbtn', type: 'button', onclick: () => snooze(a, null) }, 'Unsnooze') : null);
+  })) : '');
+  if (S.isAdmin && !parts.adminBuilt) { parts.adminBuilt = true; fill(parts.admin, buildAdmin()); }
+  parts.adminRefresh?.();
+}
+function buildAdmin() {
+  const wrap = h('section', { class: 'sheet' }, h('h2', { text: 'Inbox settings (owners and editors)' }));
+  const name = h('input', { type: 'text', id: 'a-name', maxlength: 60, value: S.config?.name ?? '', placeholder: 'e.g. Web platform team' });
+  const link = h('input', { type: 'url', id: 'a-link', value: S.config?.inboxUrl ?? '', placeholder: 'https://claude.ai/...' });
+  const hours = h('input', { type: 'number', id: 'a-hours', min: 1, max: 168, value: S.config?.blockerHours ?? 24 });
+  const errs = h('ul', { class: 'errors', hidden: true });
+  const saveCfg = h('button', { class: 'btn primary', type: 'submit' }, 'Save settings');
+  const cfgForm = h('form', { class: 'form', onsubmit: async (e) => {
+    e.preventDefault();
+    const problems = [];
+    if (link.value && !INBOX_LINK.test(link.value.trim())) problems.push('The inbox link must be this page\'s claude.ai link, starting with https://claude.ai/.');
+    fill(errs, ...problems.map((p) => h('li', { text: p }))); errs.hidden = !problems.length;
+    if (problems.length) return;
+    try { await S.db.doc('config/app').set({ ...(S.config ?? {}), schema: 1, name: name.value.trim(), inboxUrl: link.value.trim(), blockerHours: Number(hours.value) || 24, updatedAt: nowIso(), createdAt: S.config?.createdAt ?? nowIso() }); toast('Settings saved'); }
+    catch (err) { toast(errText(err)); }
+  } }, h('div', { class: 'row2' }, h('label', { class: 'field' }, h('span', { text: 'Inbox name' }), name), h('label', { class: 'field' }, h('span', { text: 'Highlight blockers older than (hours)' }), hours)),
+    h('label', { class: 'field' }, h('span', { text: 'Inbox link' }), link, h('small', { text: 'Copy it from the address bar or Share menu. It goes into every teammate\'s install command.' })), errs, h('div', { class: 'form-foot' }, saveCfg));
+  const groupList = h('div', { class: 'grouplist' });
+  const slug = h('input', { type: 'text', id: 'a-gslug', placeholder: 'slug, e.g. design', pattern: '[a-z0-9][a-z0-9-]{0,39}', 'aria-label': 'Group slug' });
+  const gname = h('input', { type: 'text', id: 'a-gname', placeholder: 'Name, e.g. Design', 'aria-label': 'Group name' });
+  const addGroup = h('form', { class: 'filters', onsubmit: async (e) => {
+    e.preventDefault();
+    const id = slug.value.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(id) || !gname.value.trim()) return toast('Give the group a lowercase slug and a name');
+    try { await S.db.doc(`groups/${id}`).set({ name: gname.value.trim(), description: '', createdAt: nowIso() }); slug.value = ''; gname.value = ''; toast('Group added'); } catch (err) { toast(errText(err)); }
+  } }, slug, gname, h('button', { class: 'btn', type: 'submit' }, 'Add group'));
+  const data = h('div', { class: 'actions' });
+  const archiveDays = h('input', { type: 'number', id: 'a-days', min: 7, value: 90, 'aria-label': 'Days', style: 'width:6em', class: 'btn small' });
+  let confirmArchive = false;
+  const refresh = () => {
+    fill(groupList, ...S.groups.map((g) => h('div', null, h('span', { class: 'mono muted', text: g.id }), h('span', { text: g.name }),
+      h('button', { class: 'linkbtn', type: 'button', onclick: async () => { try { await S.db.doc(`groups/${g.id}`).delete(); toast('Group removed'); } catch (err) { toast(errText(err)); } } }, 'Remove'))));
+    const demos = S.asks.filter((a) => a.demo);
+    const cutoff = new Date(Date.now() - Number(archiveDays.value || 90) * 86_400_000).toISOString();
+    const old = S.asks.filter((a) => ['resolved', 'cancelled'].includes(a.status) && String(a.updatedAt) < cutoff);
+    fill(data, 
+      h('button', { class: 'btn', type: 'button', disabled: !S.downloads, onclick: exportAll }, 'Download backup (JSON)'),
+      demos.length ? h('button', { class: 'btn', type: 'button', onclick: async () => { for (const a of demos) await deleteAskDeep(a.code); toast('Examples removed'); } }, `Remove ${demos.length} example ask${demos.length > 1 ? 's' : ''}`) : null,
+      confirmArchive
+        ? h('span', { class: 'confirm' }, h('span', { text: `Delete ${old.length} resolved or cancelled asks older than ${archiveDays.value} days? Download a backup first.` }),
+          h('button', { class: 'btn small danger', type: 'button', onclick: async () => { confirmArchive = false; for (const a of old) await deleteAskDeep(a.code); toast(`Archived ${old.length} asks`); } }, 'Yes, delete them'),
+          h('button', { class: 'btn small', type: 'button', onclick: () => { confirmArchive = false; refresh(); } }, 'Keep them'))
+        : h('span', { class: 'confirm', style: 'background:var(--sheet-2)' }, h('span', { text: 'Archive asks closed more than' }), archiveDays, h('span', { text: 'days ago' }),
+          h('button', { class: 'btn small', type: 'button', disabled: !old.length, onclick: () => { confirmArchive = true; refresh(); } }, old.length ? `Archive ${old.length}` : 'Nothing to archive')));
+  };
+  archiveDays.addEventListener('change', refresh);
+  S.mounted.parts.adminRefresh = refresh;
+  refresh();
+  wrap.append(cfgForm, h('h2', { text: 'Groups', style: 'margin-top:22px' }), groupList, addGroup, h('h2', { text: 'Data', style: 'margin-top:22px' }),
+    h('p', { class: 'muted', text: 'Deleting this page deletes every ask in it. Keep a backup.' }), data);
+  return wrap;
+}
+async function exportAll() {
+  try {
+    toast('Preparing backup...');
+    const out = { exportedAt: nowIso(), config: S.config, groups: S.groups, members: Object.fromEntries(S.members), asks: [] };
+    for (const a of S.asks) {
+      const [r, e] = await Promise.all([S.db.collection(`asks/${a.code}/replies`).get(), S.db.collection(`asks/${a.code}/events`).get()]);
+      out.asks.push({ ...a, replies: r.docs.map((d) => ({ id: d.id, ...d.data() })), events: e.docs.map((d) => ({ id: d.id, ...d.data() })) });
+    }
+    await S.downloads.save({ filename: `team-inbox-backup-${today()}.json`, data: JSON.stringify(out, null, 2) });
+  } catch (err) { if (err?.code !== 'dismissed' && err?.code !== 'declined') toast(err?.code === 'unavailable' ? 'Downloads are not available here. Use /team-inbox:export in Claude Code.' : errText(err)); }
+}
+
+boot();
+</script>
