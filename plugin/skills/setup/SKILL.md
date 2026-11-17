@@ -43,7 +43,7 @@ Read `../../reference/protocol.md` (relative to this skill's base directory) bef
    - The teammate invite in a fenced code block, ready to paste into chat:
      ```
      Our questions and blockers now go through Team Inbox. One-time setup (2 minutes):
-     1. Run: claude plugin install team-inbox --marketplace mikulgohil/team-inbox --config inbox=<link>
+     1. Run: claude plugin install team-inbox --marketplace inbox-for-claude/team-inbox --config inbox=<link>
      2. In Claude Code, run /team-inbox:join and pick your groups.
      From then on, Claude tells you what is waiting when you start a session. Ask with /team-inbox:ask.
      ```

@@ -2,6 +2,16 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, later)
+- Summary: the public home moves from the personal account to a GitHub organization, so the install command no longer carries a person's name.
+- Files touched: `README.md`, `plugin/.claude-plugin/plugin.json`, `plugin/page/team-inbox.html` (`MARKETPLACE`), `plugin/skills/setup/SKILL.md`, `docs/product/team-inbox-product-spec.md`. The live page was republished.
+- Decisions:
+  - Owner chosen: `inbox-for-claude` (free on GitHub when checked 2026-11-17). Install is now `claude plugin install team-inbox --marketplace inbox-for-claude/team-inbox --config inbox=<link>`.
+  - Trade-off accepted by the owner: "claude" in the org name can read as an Anthropic project; the README states it is independent and not endorsed by Anthropic.
+  - Author and licence holder stay Mikul Gohil; the marketplace owner name stays a person.
+- Follow-ups:
+  - The owner creates the free organization `inbox-for-claude` at github.com/account/organizations/new (GitHub has no API to create one), then the repo is created there and pushed.
+
 ## 2026-11-17 (local)
 - Summary: first build of Team Inbox v1 against the approved product spec (`docs/product/team-inbox-product-spec.md`), including one-line install.
 - Files touched: `.claude-plugin/marketplace.json`, `plugin/.claude-plugin/plugin.json`, `plugin/hooks/{hooks.json,session-start.mjs}`, `plugin/bin/inbox.mjs`, `plugin/reference/protocol.md`, `plugin/skills/*/SKILL.md` (8), `plugin/page/team-inbox.html`, `plugin/test/*`, `README.md`, `LICENSE`, `package.json`.

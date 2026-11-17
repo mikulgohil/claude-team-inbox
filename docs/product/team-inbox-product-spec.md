@@ -158,10 +158,10 @@ Light and dark both designed, tokens on `:root`, phone width supported.
 ## Install (added 2026-11-17 on approval)
 Install must be one paste for a teammate and one command for a team lead.
 - Teammate: one line from the invite, with the inbox link already filled in:
-  `claude plugin install team-inbox --marketplace mikulgohil/team-inbox --config inbox=<inbox link>`
+  `claude plugin install team-inbox --marketplace inbox-for-claude/team-inbox --config inbox=<inbox link>`
   This adds the marketplace, installs at user scope (every project) and stores the link (verified against `claude plugin install --help`, Claude Code 2.1.326).
-- Inside Claude Code or the Desktop Code tab: `/plugin marketplace add mikulgohil/team-inbox`, then `/plugin install team-inbox@team-inbox`, then `/team-inbox:join <inbox link>`.
-- Or simply tell Claude "install Team Inbox from mikulgohil/team-inbox"; the README gives Claude the exact command.
+- Inside Claude Code or the Desktop Code tab: `/plugin marketplace add inbox-for-claude/team-inbox`, then `/plugin install team-inbox@team-inbox`, then `/team-inbox:join <inbox link>`.
+- Or simply tell Claude "install Team Inbox from inbox-for-claude/team-inbox"; the README gives Claude the exact command.
 - Team lead: the same install without `--config`, then `/team-inbox:setup`, which publishes the page and prints the invite text with the one-line command for teammates.
 - Org admins (optional, zero-touch): a managed-settings snippet with `extraKnownMarketplaces` and `enabledPlugins`.
 - The page's Team view and join panel show the teammate command with a copy button.

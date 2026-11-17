@@ -29,7 +29,7 @@ People without Claude Code open can answer straight on the page, in the browser 
 ### Team lead: once per team (about 3 minutes)
 
 ```bash
-claude plugin install team-inbox --marketplace mikulgohil/team-inbox
+claude plugin install team-inbox --marketplace inbox-for-claude/team-inbox
 ```
 
 Then, in Claude Code:
@@ -47,7 +47,7 @@ Add `--demo` to start with three example asks you can remove later.
 The invite from setup contains the exact command with your inbox link filled in:
 
 ```bash
-claude plugin install team-inbox --marketplace mikulgohil/team-inbox --config inbox=https://claude.ai/artifact/XXXX
+claude plugin install team-inbox --marketplace inbox-for-claude/team-inbox --config inbox=https://claude.ai/artifact/XXXX
 ```
 
 This adds the marketplace, installs the plugin for every project, and connects it to your inbox.
@@ -59,12 +59,12 @@ The page's Team view shows the same command with a copy button.
 Inside Claude Code or the Desktop Code tab:
 
 ```
-/plugin marketplace add mikulgohil/team-inbox
+/plugin marketplace add inbox-for-claude/team-inbox
 /plugin install team-inbox@team-inbox
 /team-inbox:join https://claude.ai/artifact/XXXX
 ```
 
-Or just tell Claude: "Install Team Inbox from mikulgohil/team-inbox and join https://claude.ai/artifact/XXXX".
+Or just tell Claude: "Install Team Inbox from inbox-for-claude/team-inbox and join https://claude.ai/artifact/XXXX".
 
 **For admins (zero-touch):** add this to your organization's managed settings, and the plugin installs for everyone at their next session start.
 
@@ -72,7 +72,7 @@ Or just tell Claude: "Install Team Inbox from mikulgohil/team-inbox and join htt
 {
   "extraKnownMarketplaces": {
     "team-inbox": {
-      "source": { "source": "github", "repo": "mikulgohil/team-inbox" },
+      "source": { "source": "github", "repo": "inbox-for-claude/team-inbox" },
       "autoUpdate": true
     }
   },
