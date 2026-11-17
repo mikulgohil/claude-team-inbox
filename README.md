@@ -69,7 +69,7 @@ People without Claude Code open can read and answer on the page itself, in a bro
 
 ## Features
 
-| | |
+| Feature | What it does |
 |---|---|
 | **Asks with context** | Questions, blockers, review requests and FYIs, sent to people or groups. From Claude Code each ask carries the repo, branch and files you were in. |
 | **Session-start check** | Once a day by default, Claude opens with one line about what is waiting for you, and says nothing when nothing is. |
