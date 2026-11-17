@@ -2,6 +2,11 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, after first push)
+- Summary: the signed-in user in the README screenshots is now the author, Mikul Gohil, at his request; teammates, team name and projects stay fictional.
+- Files touched: `scripts/screenshots/build.cjs`, `scripts/screenshots/shoot.sh`, `docs/images/*.png`, `README.md`.
+- Decisions: light screenshots now pass `theme=light` explicitly. Without it, headless Chrome follows the Mac's appearance, and a run in the evening produced dark "light" screenshots.
+
 ## 2026-11-17 (local, before first push)
 - Summary: the public home is `mikulgohil/team-inbox`, not the `inbox-for-claude` organization, which the owner could not create. This supersedes the "later" entry below.
 - Files touched: `README.md`, `plugin/.claude-plugin/plugin.json`, `plugin/page/team-inbox.html` (`MARKETPLACE`), `plugin/skills/setup/SKILL.md`, `docs/product/team-inbox-product-spec.md`, `docs/images/*.png` (regenerated, since the Team and join screens show the install command). The live page was republished.

@@ -23,13 +23,13 @@ mkdir -p "$out"
 
 # name  width,height  page
 shots=(
-  "hero-light 1280,520 demo.html?still=1#for-me"
+  "hero-light 1280,520 demo.html?still=1&theme=light#for-me"
   "hero-dark  1280,520 demo.html?still=1&theme=dark#for-me"
-  "ask        1280,1560 demo.html?still=1#ask-UT4E6Z"
-  "composer   1280,900 demo.html?compose=1#waiting"
-  "guide      1280,960 demo.html?still=1#guide"
-  "team       1280,672 demo.html?still=1#team"
-  "welcome    1280,980 demo.html?still=1&join=1#for-me"
+  "ask        1280,1560 demo.html?still=1&theme=light#ask-UT4E6Z"
+  "composer   1280,900 demo.html?compose=1&theme=light#waiting"
+  "guide      1280,960 demo.html?still=1&theme=light#guide"
+  "team       1280,672 demo.html?still=1&theme=light#team"
+  "welcome    1280,980 demo.html?still=1&theme=light&join=1#for-me"
   "phones     1000,880 phones.html"
 )
 for s in "${shots[@]}"; do

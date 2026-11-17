@@ -9,7 +9,7 @@ const q = new URLSearchParams(location.search);
 if (q.get('theme')) document.documentElement.dataset.theme = q.get('theme');
 const av = (t, c) => 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="' + c + '"/><text x="20" y="25.5" font-size="14" font-weight="600" font-family="Helvetica,Arial,sans-serif" fill="#fff" text-anchor="middle">' + t + '</text></svg>');
 const P = {
-  u_me: { id: 'u_me', name: 'Sam Rivera', avatarUrl: av('SR', '#C46A4A') },
+  u_me: { id: 'u_me', name: 'Mikul Gohil', avatarUrl: av('MG', '#C46A4A') },
   u_pn: { id: 'u_pn', name: 'Priya Nair', avatarUrl: av('PN', '#5B7DB1') },
   u_tl: { id: 'u_tl', name: 'Tomas Lind', avatarUrl: av('TL', '#6E8B5A') },
   u_at: { id: 'u_at', name: 'Aiko Tanaka', avatarUrl: av('AT', '#9A6FB0') },
@@ -78,5 +78,5 @@ fs.writeFileSync(out + '/demo.html', head + mock + page + '</body></html>');
 fs.writeFileSync(out + '/phones.html', `<!doctype html><meta charset=utf8><style>
 body{margin:0;background:#F0EEE6;display:flex;gap:48px;justify-content:center;align-items:center;height:100vh}
 iframe{border:0;width:390px;height:780px;border-radius:36px;box-shadow:0 0 0 10px #141413,0 30px 60px rgba(20,20,19,.25);background:#fff}
-</style><iframe src="demo.html#for-me"></iframe><iframe src="demo.html?theme=dark#ask-UT4E6Z"></iframe>`);
+</style><iframe src="demo.html?theme=light#for-me"></iframe><iframe src="demo.html?theme=dark#ask-UT4E6Z"></iframe>`);
 console.log('built', out);

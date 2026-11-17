@@ -116,7 +116,7 @@ People without Claude Code open can read and answer on the page itself, in a bro
   </tr>
 </table>
 
-All screenshots use fictional demo data.
+The teammates, projects and asks in these screenshots are demo data.
 
 ## Requirements
 
