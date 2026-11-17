@@ -2,6 +2,26 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, night)
+- Summary: the page moves from the Apple-style look to a Claude-style look, gains a Guide view, and gains four small page-only features. No change to the plugin, the helper CLI, the access rules or the data model.
+- Files touched: `plugin/page/team-inbox.html`, `README.md` (the inbox page section), `docs/product/team-inbox-product-spec.md` (Visual direction, and a new "Added after v1" section). The live page was republished (version 9).
+- Decisions:
+  - Theme: warm ivory and charcoal grounds, ink primary buttons, clay as the one accent, Newsreader for titles and for user-written text, DM Sans for the interface. The owner asked for it because the product belongs to the Claude ecosystem.
+  - No Anthropic or Claude logos or marks anywhere; the Guide ends with a line saying the project is independent and not endorsed by Anthropic. A Claude-like look on a public repo makes that line matter more, not less.
+  - This reverses the earlier call that cream plus a warm accent looks generic. The owner's explicit request outranks that guideline.
+  - Thread layout: your replies in a soft bubble on the right, everyone else's as plain serif text. It mirrors how Claude's own apps separate the two sides of a conversation.
+  - `rich()` builds code formatting from DOM nodes only (no `innerHTML`), so reply text still cannot inject markup. An unclosed fence stays plain text.
+  - Related asks use word overlap on title, body and accepted answer (at least 60% of the draft title's meaningful words, minimum two). It is a hint, not search; no index and no extra reads, because the asks are already in memory.
+  - Shortcuts are single keys and are ignored while typing, with a modifier held, or with the composer open.
+  - The Guide is static text in the page. It must be kept in step with `README.md` and the skills by hand; a comment above `renderGuide` says so.
+- Verified:
+  - Live page on claude.ai, desktop width, light theme: Waiting on others, an ask, and the Guide, by screenshot; no console errors.
+  - Phone width, dark theme, a reply with inline code and a fenced block, the `N` shortcut and the related-asks hint, through the local mock harness (same file, mock `window.claude`).
+  - `rich()` checked in Node for mixed text, an unclosed fence and an empty value.
+- Not verified: the `/`, number and `?` shortcuts were not pressed in a browser (only `N` was); the Guide's wording was written from `README.md` and the skill descriptions, not from a second person's first-run.
+- Follow-ups:
+  - Features offered to the owner and not built: edit your own ask, nudge an ask that has waited too long, "me too" on someone else's ask, a weekly summary for leads.
+
 ## 2026-11-17 (local, evening)
 - Summary: the inbox page is restyled to look like a native Apple app, at the owner's request. No data, rule or protocol change.
 - Files touched: `plugin/page/team-inbox.html` (whole stylesheet, plus markup for icons, sidebar, rows, thread, composer and welcome screen), `docs/product/team-inbox-product-spec.md` (Visual direction). The live page was republished (version 8).

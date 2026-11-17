@@ -109,8 +109,11 @@ Change it with `/plugin configure team-inbox@team-inbox`: `first-of-day` (defaul
 
 ## The inbox page
 
-Views: **For me** (assigned to you or unclaimed in your groups, blockers first), **Waiting on others**, **All open**, **Answers** (resolved asks, searchable), **Team** (members, availability, time-to-answer stats, invite), **Preferences**.
-On an ask: the thread, screenshots, accept an answer, claim, snooze, reassign, reopen, cancel, and the full history of who changed what.
+Views: **For me** (assigned to you or unclaimed in your groups, blockers first), **Waiting on others**, **All open**, **Answers** (resolved asks, searchable), **Team** (members, availability, time-to-answer stats, invite), **Preferences**, and a built-in **Guide** that explains all of this to new teammates.
+On an ask: the thread, screenshots, accept an answer, claim, snooze, reassign, reopen, cancel, the command to continue it in Claude Code, and the full history of who changed what.
+While you type a new ask's title, the composer shows related asks that may already hold the answer.
+Backtick `inline code` and fenced code blocks render as code in asks and replies.
+Keyboard shortcuts: `N` new ask, `/` search, `1` to `5` switch views, `?` opens the Guide.
 Owners and editors also get inbox settings, groups, backup download, and archiving of old asks.
 
 ## How it works

@@ -147,18 +147,28 @@ Blockers older than the team's threshold (default 1 working day) are highlighted
 | Export / backup | in | `/team-inbox:export` dumps the store to local JSON; page offers a download. |
 
 ## Visual direction
-Changed 2026-11-17 at the owner's request ("make it look like an Apple product"); this replaces the earlier "sorting office" ledger direction.
-"Native app": the page should read like a first-party Mac and iPhone app, close to Mail and Reminders, not like a web dashboard.
-Light mode is a `#F5F5F7` ground with borderless white cards and hairline separators; dark mode is true black with `#1C1C1E` cards.
-One accent, system blue, for actions and selection.
-Semantic colours only where they carry meaning: red for blockers and overdue, orange for an answer waiting to be checked, green for resolved.
-Type: the system font first (San Francisco on Apple devices), Inter as the fallback elsewhere; rounded numerals for counts and stats; the system mono for ask codes, repo and branch.
-Shell: a translucent blurred toolbar, a source-list sidebar with coloured icon tiles on desktop, a five-item bottom tab bar on phones (Preferences moves behind the avatar).
-Controls: capsule buttons, filled fields with no borders, a segmented control for single choices, toggle chips for groups, a sheet for the composer (a bottom sheet on phones).
-Replies read as a message thread: your replies sit right in the accent colour, everyone else's sit left in grey.
-We refuse: purple gradients, default shadcn look, cream-and-terracotta, emoji-heavy UI, Apple's own logos, product names or SF Symbols (the icons are drawn for this page).
-Accessibility overrides fidelity: text colours use the darker accessible variants of the system palette, because white on system orange, green or bright blue fails contrast.
+Changed twice on 2026-11-17 at the owner's request: first to an Apple-style look, then to this one ("change to claude theme only as this is related to claude").
+The first "sorting office" ledger and the Apple-style look are both retired.
+"At home in Claude": the page should feel like it belongs next to Claude's own apps, since it lives inside claude.ai and serves Claude Code users.
+Light mode is a warm ivory ground (`#FAF9F5`) with white cards, hairline borders and a very soft shadow; dark mode is warm charcoal (`#262624`) with `#30302E` cards.
+Primary actions are ink (near-black on light, ivory on dark).
+One accent, clay (`#D97757`), used sparingly: the logo tile, unread dots, the selected view, open status, links and focus.
+Semantic colours only where they carry meaning: red for blockers and overdue, amber for an answer waiting to be checked, olive green for resolved.
+Type: Newsreader (serif) for titles and for the words people wrote in asks and replies; DM Sans for the interface; the system mono for ask codes, commands and code.
+Shell: a toolbar, a plain sidebar with line icons on desktop, a five-item bottom tab bar on phones (Preferences sits behind the avatar, the Guide behind the help button).
+Controls: 9px-radius buttons, bordered white fields, a segmented control for single choices, toggle chips for groups, a sheet for the composer (a bottom sheet on phones).
+Replies read as a thread: your own sit right in a soft bubble, everyone else's read as plain serif text beside their avatar.
+We refuse: Anthropic's or Claude's logos and marks (the icons are drawn for this page, and the Guide states the project is independent), purple gradients, default shadcn look, emoji-heavy UI.
+Accessibility overrides fidelity: white on clay is about 3.1:1 and fails, so clay never carries small white text; clay-coloured text uses a darker rust (`#A8492A`).
 Light and dark both designed, tokens on `:root`, phone width supported.
+
+## Added after v1 (2026-11-17)
+All four live in the page only; the plugin, the helper CLI and the data model are unchanged.
+- Guide view (`#guide`): the loop, the Claude Code commands, the views, what each label means, tips for a good ask, shortcuts, privacy and common questions. Reachable before joining.
+- Related asks in the composer: while the title is typed, up to three existing asks that share most of its meaningful words are shown, so people find an answer before asking again.
+- Code formatting: backtick `inline code` and fenced blocks render as code in asks, answers and replies.
+- Keyboard shortcuts: `N` new ask, `/` search, `1` to `5` views, `?` guide.
+- Claude Code hand-off: every open ask shows the command to continue it in Claude Code (`/team-inbox:reply CODE`, or `/team-inbox:inbox CODE` for the asker) with a copy button.
 
 ## Install (added 2026-11-17 on approval)
 Install must be one paste for a teammate and one command for a team lead.
