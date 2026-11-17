@@ -2,6 +2,14 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, before first push)
+- Summary: the public home is `mikulgohil/team-inbox`, not the `inbox-for-claude` organization, which the owner could not create. This supersedes the "later" entry below.
+- Files touched: `README.md`, `plugin/.claude-plugin/plugin.json`, `plugin/page/team-inbox.html` (`MARKETPLACE`), `plugin/skills/setup/SKILL.md`, `docs/product/team-inbox-product-spec.md`, `docs/images/*.png` (regenerated, since the Team and join screens show the install command). The live page was republished.
+- Decisions:
+  - Repo name `team-inbox`, chosen by the owner, so the repo, plugin and command prefix all match: `claude plugin install team-inbox --marketplace mikulgohil/team-inbox`.
+  - The repo can move to an organization later; GitHub redirects a transferred repo, but whether Claude Code's marketplace fetch follows that redirect is not verified.
+  - Before the first push, local history was rewritten with `git filter-repo --replace-text` so no commit contains the client project name, the employer's name or the live inbox id. A mirror backup of the pre-rewrite repo was kept outside the repo.
+
 ## 2026-11-17 (local, late night)
 - Summary: a GitHub-ready README with screenshots, a script that regenerates them, and removal of client and company names before the repo goes public.
 - Files touched: `README.md` (rewritten), `docs/images/*.png` (8 screenshots), `scripts/screenshots/{build.cjs,shoot.sh}`, `package.json` (`screenshots` script), and name clean-up in `plugin/page/team-inbox.html`, `plugin/skills/setup/SKILL.md`, `plugin/test/inbox.test.mjs`, `docs/product/team-inbox-product-spec.md` and this log.
