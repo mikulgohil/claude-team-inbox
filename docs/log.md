@@ -2,6 +2,15 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, Agent SDK research)
+- Summary: research only, no code change. Question from the owner: what could Team Inbox add with the Claude Agent SDK?
+- Finding that decides it: an unattended agent cannot reach the inbox store today.
+  - Probe (Claude Code, headless `claude -p`, claude.ai login, `apiKeySource: none`): the session had 182 tools and no Artifact tools; a read of `config/app` failed with "ArtifactData tool not available". Interactive sessions do have the tools.
+  - Docs (code.claude.com/docs/en/artifacts.md, as quoted by a research agent, not opened directly): Artifacts are "Off by default in the Agent SDK, the GitHub Action, and MCP-server contexts, when you run Claude Code with -p", and need a `/login` session, not an API key. How to turn them on in those contexts is not documented.
+  - Docs (agent-sdk/overview, via the same agent): Anthropic does not allow third-party products, including Agent SDK agents, to offer claude.ai login unless approved; distributed SDK agents use an API key, which cannot reach Artifacts.
+- Consequence: any always-on feature (auto-triage, scheduled escalation, lead digest, answer freshness, PR integration) needs either a store an unattended agent can reach, or a Claude surface that has the Artifact tools.
+- Open question worth a short spike: Claude Code scheduled tasks (cloud, formerly routines) run as the creator's claude.ai account with connectors and can publish Artifacts; whether they can read and write an Artifact's database is not documented. Desktop scheduled tasks are also untested.
+
 ## 2026-11-17 (local, v1.1)
 - Summary: v1.1 adds nudge and escalation, follow ("Me too"), editing your own ask, and templates per kind, across the page, the helper CLI, the protocol and the skills. Spec: `docs/product/team-inbox-product-spec.md`, section v1.1.
 - Files touched: `plugin/bin/inbox.mjs`, `plugin/test/inbox.test.mjs`, `plugin/reference/protocol.md`, `plugin/skills/{ask,inbox,resolve}/SKILL.md`, `plugin/page/team-inbox.html`, `scripts/screenshots/build.cjs`, `docs/images/*.png`, `README.md`, the spec. The live page was republished.
