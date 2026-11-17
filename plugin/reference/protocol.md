@@ -17,7 +17,7 @@ If that context is missing, read the link with `claude plugin configure team-inb
 
 | Path | What | Who writes |
 |---|---|---|
-| `config/app` | `{name, inboxUrl, blockerHours}` | owner and editors |
+| `config/app` | `{name, inboxUrl, blockerHours, pageVersion, pageUpdatedAt}` | owner and editors |
 | `groups/<slug>` | `{name, description}` | owner and editors |
 | `members/<uid>` | `{uid, groups[], availability, awayUntil, joinedAt, updatedAt}` | that member only |
 | `asks/<CODE>` | the ask (fields below) | any member |
@@ -75,6 +75,7 @@ Run this when the session context says `SESSION CHECK DUE`, before answering the
    Otherwise resolve `people_to_name` with `ArtifactData` `profiles`, then open your reply with at most three short lines, overdue and nudged first, for example:
    `Team Inbox: Priya nudged her blocker (Hero banner CTAs, overdue, waiting 30h). 1 reply on your asks; 1 update on an ask you follow. Run /team-inbox:inbox.`
    When one of your own asks is overdue and was never nudged, add: `Your blocker K3F9X2 has waited 30h; want me to nudge it?`
+   When the digest has a `page_update` line, add one line even if nothing else is waiting: `Team Inbox: a newer inbox page (1.3.0) ships with the plugin; the inbox owner can run /team-inbox:update-page.`
    Then answer the user's actual message.
 8. If any step fails (tool missing, permission refused, network), drop the check silently. Never block the user's request on the inbox.
 
@@ -162,6 +163,15 @@ There is no server-side text search; keep the matching in your own reading.
 2. `ArtifactData` `list` each of `config`, `groups`, `members`, `asks` with `out_dir: <run>`, paging with `query.cursor` until no `next_cursor`.
 3. For each ask, `list` `asks/<CODE>/replies` and `asks/<CODE>/events` with `out_dir: <run>`.
 4. Tell the user the folder path and the document count. The backup is plain JSON in the same layout as the store.
+
+## Update the inbox page
+
+The page's version is the `team-inbox-version` meta tag in `page/team-inbox.html`; `node <CLI> page-version` prints it.
+`config/app.pageVersion` records which version was last published to this inbox (setup writes it, `/team-inbox:update-page` updates it); inboxes set up before 1.3.0 have none.
+The digest prints `page_update` when the recorded version is older than this plugin's page, or missing.
+Updating republishes the page to the same link with the capabilities in `page/capabilities.json`. It never touches asks, members or groups, and it never publishes an older page over a newer one.
+Only the inbox owner or an editor can do it; the steps are in the `update-page` skill.
+Every page version reads the same data model (schema 1), so teammates on an older plugin keep working against a newer page, and the other way round.
 
 ## Errors
 

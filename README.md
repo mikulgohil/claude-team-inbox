@@ -225,6 +225,7 @@ People still run `/team-inbox:join <link>` once, because the link is your team's
 | `/team-inbox:todo K3F9X2 done "shipped in PR 512"` | Marks it done with a note; `cant <reason>` says you can't do it. |
 | `/team-inbox:search timezone` | Looks through resolved asks before you ask again. |
 | `/team-inbox:export` | Backs the whole inbox up to local JSON files. |
+| `/team-inbox:update-page` | For the inbox owner: brings your team's page up to the version in the plugin. Asks and settings stay. |
 
 You can also just talk: "what do I have to do today?", "ask Priya to update the tokens by Friday", "anything in my inbox?", "ask Priya whether the venue API returns a timezone", "tell Alex the header fix is on staging".
 When Claude itself gets stuck on something only a teammate knows, it offers to file the ask instead of guessing.
@@ -249,7 +250,7 @@ Change it with `/plugin configure team-inbox@team-inbox`: `first-of-day` (the de
 | **Answers** | Resolved asks and their accepted answers, searchable. |
 | **Done** | Finished to-dos and what was done, newest first. |
 | **Team** | Members, availability, answer-time stats and the invite command. |
-| **Preferences** | Your availability and groups. Owners also get inbox settings, groups, backup and archiving. |
+| **Preferences** | Your availability and groups. Owners also get inbox settings, groups, backup, archiving and the page version. |
 | **Guide** | How Team Inbox works, for new teammates. |
 
 On an ask you can reply, attach screenshots, accept an answer, claim, snooze, reassign, reopen or cancel, nudge it, press Me too, edit your own, copy the command to continue in Claude Code, and see the full history of who changed what.
@@ -259,7 +260,7 @@ Keyboard shortcuts: <kbd>N</kbd> new ask, <kbd>/</kbd> search, <kbd>1</kbd> to <
 ## Under the hood
 
 - **The page** is one HTML file, [`plugin/page/team-inbox.html`](plugin/page/team-inbox.html), published as a claude.ai Artifact with a shared database (`db`), viewer identity (`user`), screenshot uploads (`assets`) and downloads.
-- **The plugin** gives Claude Code nine skills and a SessionStart hook.
+- **The plugin** gives Claude Code ten skills and a SessionStart hook.
   Claude reads and writes the inbox with its built-in `ArtifactData` tool, acting as you, with your access.
 - **The helper CLI**, [`plugin/bin/inbox.mjs`](plugin/bin/inbox.mjs), holds all the logic: ids, validation, status changes, the secret scan and the digest.
   It runs offline and is tested; Claude only moves the documents it prepares.
@@ -267,6 +268,27 @@ Keyboard shortcuts: <kbd>N</kbd> new ask, <kbd>/</kbd> search, <kbd>1</kbd> to <
   It tells Claude where the inbox is and, once a day by default, asks it to run the read-only check before its first answer.
 
 The full procedure Claude follows is in [`plugin/reference/protocol.md`](plugin/reference/protocol.md).
+
+## Updating
+
+Two things update, separately.
+
+**The plugin** (skills, the daily check, the helper CLI) is on each person's machine.
+Run `claude plugin update team-inbox@team-inbox` and restart Claude Code, or set `"autoUpdate": true` on the marketplace as in the admin snippet above.
+
+**The inbox page** is your team's own copy on claude.ai, so a plugin update does not change it by itself.
+When a newer plugin brings a newer page, the daily check says so in one line.
+The inbox owner (or an editor) then runs:
+
+```
+/team-inbox:update-page
+```
+
+Claude checks that the inbox is older than the plugin's page, republishes the page to the same link with the same access rules, and records the new version in the inbox settings.
+Asks, replies, members, groups and settings are untouched, because they live in the page's database, not in its HTML.
+It never puts an older page over a newer one; if your plugin is behind, it tells you to update the plugin first.
+Every page version reads the same data, so teammates on an older plugin keep working in the meantime.
+Preferences shows which version the page is on.
 
 ## Data, privacy and safety
 

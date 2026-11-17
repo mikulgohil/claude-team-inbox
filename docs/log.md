@@ -2,6 +2,27 @@
 
 Hand-written decisions and verification notes, newest first.
 
+## 2026-11-17 (local, v1.3 update-page, and the install test)
+- Summary: a fresh install from GitHub was tested end to end, then `/team-inbox:update-page` was built so a team's own copy of the page can follow the plugin. Spec: section v1.3.
+- Files touched: `plugin/bin/inbox.mjs`, `plugin/test/inbox.test.mjs`, `plugin/page/team-inbox.html`, `plugin/page/capabilities.json` (new), `plugin/skills/update-page/SKILL.md` (new), `plugin/skills/setup/SKILL.md`, `plugin/reference/protocol.md`, `README.md`, the spec. The live page was republished through the new flow.
+- Install test (Claude Code 2.1.326, plugin at commit 469cfa0):
+  - `claude plugin install team-inbox --marketplace mikulgohil/claude-team-inbox --config inbox=<link>` installed at user scope and saved the link. The installed copy matched the repo's `plugin/` folder.
+  - The marketplace was cloned over SSH. A teammate without a GitHub SSH key is untested.
+  - `reminders` shows as "unconfigured" in `claude plugin configure` output, yet behaves as its default `first-of-day`. The hook falls back the same way. Cosmetic, but it may confuse a teammate.
+  - Hook from the installed path: first session of the day printed SESSION CHECK DUE, the second did not.
+  - Session check against the live inbox with the installed CLI (state, active asks, followed asks, members, config, digest): all steps ran; the digest matched the store (one ask waiting on others).
+- Decisions:
+  - The page version lives only in the page's `team-inbox-version` meta tag; the CLI and the page both read it, so they cannot drift.
+  - The capabilities object moved from the setup skill's text into `plugin/page/capabilities.json`, shared by setup and update-page, so a republish never drops or changes an access rule.
+  - The digest judges the page only when it actually read `config/app`; a missing `pageVersion` counts as older (inboxes from before 1.3.0).
+  - Update-page refuses a downgrade (`plugin-older`) and stops when current unless `--force`.
+  - `plugin.json` still has no `version` on purpose (see the first entry): the validator's warning stays.
+- Verified:
+  - `npm test`: 35 of 35. `claude plugin validate`: passes with the known no-version warning.
+  - Preferences (light) and Guide (dark) rendered with the mock store: the new Page block and the update-page command row.
+  - Live run of the skill's steps on the owner's inbox: the digest flagged `page_update` (unrecorded vs 1.3.0); the Artifact read confirmed write access; the publish to the same link became version 16 with the same four rules; the `config/app` update pinned to version 1 committed (now version 2); a fresh digest no longer flags the page, and `page-version --current 1.3.0` reports `none`.
+- Not verified: the skill run by a fresh Claude session from the installed plugin (the installed copy predates it), and whether views already open reload by themselves after a tool publish. The skill tells people to reload rather than promise it.
+
 ## 2026-11-17 (local, v1.2 to-dos)
 - Summary: to-dos, as a new kind of ask, across the helper CLI, a new `/team-inbox:todo` skill, the protocol and the page. Spec: section v1.2.
 - Files touched: `plugin/bin/inbox.mjs`, `plugin/test/inbox.test.mjs`, `plugin/reference/protocol.md`, `plugin/skills/todo/SKILL.md` (new), `plugin/skills/ask/SKILL.md`, `plugin/page/team-inbox.html`, `scripts/screenshots/build.cjs`, `docs/images/*.png`, `README.md`, the spec. The live page was republished.

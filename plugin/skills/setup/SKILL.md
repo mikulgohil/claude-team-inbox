@@ -16,18 +16,10 @@ Read `../../reference/protocol.md` (relative to this skill's base directory) bef
    - `file_path`: the copied file
    - `icon`: `inbox`
    - `description`: `Questions and blockers between teammates' Claude Code sessions, answered when they are free.`
-   - `capabilities`, exactly:
-     ```json
-     {"db": {"rules": [
-       {"path": "config", "read": "view", "write": "admin"},
-       {"path": "groups", "read": "view", "write": "admin"},
-       {"path": "members", "read": "view", "write": "admin"},
-       {"path": "members/{self}", "read": "view", "write": "interact"}
-     ]}, "user": {"scopes": ["profile"]}, "assets": {"upload": "interact"}, "downloads": true}
-     ```
+   - `capabilities`: the JSON object in `../../page/capabilities.json`, exactly (it sets who may write config, groups and members, and turns on profiles, screenshot uploads and downloads)
    The publish result gives the inbox link (`https://claude.ai/artifact/...`).
-4. Seed the store with one `ArtifactData` `batch` on that link (get `<now>` from `node ../../bin/inbox.mjs ids`):
-   - `set` `config` / `app`: `{schema: 1, name: <name>, inboxUrl: <link>, blockerHours: 24, createdAt: <now>, updatedAt: <now>}`
+4. Seed the store with one `ArtifactData` `batch` on that link (get `<now>` from `node ../../bin/inbox.mjs ids`, and `<template>` from `node ../../bin/inbox.mjs page-version`):
+   - `set` `config` / `app`: `{schema: 1, name: <name>, inboxUrl: <link>, blockerHours: 24, pageVersion: <template>, createdAt: <now>, updatedAt: <now>}`
    - `set` `groups` / `design`, `frontend`, `backend`, `qa`, `pm` with names Design, Frontend, Backend, QA, Project management and `{description: "", createdAt: <now>}`.
    Ask the user first if they want different groups.
 5. Join the user (protocol: Join).

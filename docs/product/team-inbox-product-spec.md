@@ -187,6 +187,14 @@ Approved by the owner as "Option 1" after research into Slack Lists, Basecamp, L
 - Claude Code: `/team-inbox:todo` lists, starts (marks Doing and loads the to-do as a task in the session), marks done or can't do, and files to-dos. The daily check counts to-dos and flags those due today.
 - Deliberately out, to avoid rebuilding a tracker: priorities, subtasks, estimates, boards, several owners per to-do. Sending to Jira, Linear or Todoist through the viewer's connectors stays a possible later add-on.
 
+## v1.3 (2026-11-17): updating a team's page
+Each team publishes its own copy of the page, so a plugin update alone never reaches it.
+- The page carries its version in one place, a `team-inbox-version` meta tag. The CLI reads that tag (`page-version`); the page shows it in Preferences.
+- `config/app.pageVersion` records which version was last published to an inbox. Setup writes it; inboxes from before 1.3.0 have none and count as older.
+- The daily check adds one `page_update` line when the inbox is older than the plugin's page, so the owner hears about it from their own session or from a teammate.
+- `/team-inbox:update-page` (owner or editor) republishes the page to the same link with the capabilities in `page/capabilities.json`, the same file setup uses, then records the version. It stops when already current, and refuses to publish an older page over a newer one.
+- The data model stays at schema 1, so mixed plugin versions across a team keep working.
+
 ## Install (added 2026-11-17 on approval)
 Install must be one paste for a teammate and one command for a team lead.
 - Teammate: one line from the invite, with the inbox link already filled in:

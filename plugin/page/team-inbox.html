@@ -1,4 +1,5 @@
 <title>Team Inbox</title>
+<meta name="team-inbox-version" content="1.3.0">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -460,6 +461,8 @@ const MARKETPLACE = 'mikulgohil/claude-team-inbox';
 const DEFAULT_GROUPS = [['design', 'Design'], ['frontend', 'Frontend'], ['backend', 'Backend'], ['qa', 'QA'], ['pm', 'Project management']];
 const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const INBOX_LINK = /^https:\/\/claude\.ai\/\S+$/;
+// This page's version, read from its team-inbox-version meta tag (the one place it is written; the CLI reads the same tag).
+const PAGE_VERSION = document.querySelector('meta[name="team-inbox-version"]')?.content || '';
 
 // ------------------------------------------------------------------ state
 const S = {
@@ -1325,7 +1328,8 @@ function renderGuide(main, banner) {
         cmd('/team-inbox:resolve K3F9X2', 'Accepts an answer, or claims, reopens, reassigns or cancels an ask. Add nudge to chase one that is taking too long, or follow when you need the same answer.'),
         cmd('/team-inbox:todo', 'Lists the to-dos teammates gave you. Add a code and start to begin one: Claude marks it Doing and loads it as a task. Then done or cant with a reason.'),
         cmd('/team-inbox:search timezone', 'Looks through resolved asks before you ask again.'),
-        cmd('/team-inbox:export', 'Backs the whole inbox up to local JSON files.')),
+        cmd('/team-inbox:export', 'Backs the whole inbox up to local JSON files.'),
+        cmd('/team-inbox:update-page', 'For owners: brings this page up to the plugin\'s latest version. Asks and settings stay.')),
         h('h3', { text: 'You can also just talk' }),
         h('p', { class: 'muted', text: '"Anything in my inbox?", "ask Priya whether the venue API returns a timezone", "tell Alex the header fix is on staging". When Claude itself gets stuck on something only a teammate knows, it offers to file the ask instead of guessing.' }),
         h('h3', { text: 'The daily check' }),
@@ -1490,7 +1494,10 @@ function buildAdmin() {
   const data = h('div', { class: 'actions' });
   const archiveDays = h('input', { type: 'number', id: 'a-days', min: 7, value: 90, 'aria-label': 'Days', style: 'width:6em', class: 'btn small' });
   let confirmArchive = false;
+  const pageInfo = h('p', { class: 'muted' });
   const refresh = () => {
+    const recorded = S.config?.pageVersion;
+    fill(pageInfo, `This page is version ${PAGE_VERSION || 'unknown'}${recorded && recorded !== PAGE_VERSION ? ` (settings record ${recorded})` : ''}. When the plugin brings a newer page, run `, h('code', { class: 'k', text: '/team-inbox:update-page' }), ' in Claude Code. Asks, members and settings stay as they are.');
     fill(groupList, ...S.groups.map((g) => h('div', null, h('span', { class: 'mono muted', text: g.id }), h('span', { text: g.name }),
       h('button', { class: 'linkbtn', type: 'button', onclick: async () => { try { await S.db.doc(`groups/${g.id}`).delete(); toast('Group removed'); } catch (err) { toast(errText(err)); } } }, 'Remove'))));
     const demos = S.asks.filter((a) => a.demo);
@@ -1510,7 +1517,8 @@ function buildAdmin() {
   S.mounted.parts.adminRefresh = refresh;
   refresh();
   wrap.append(cfgForm, h('h2', { text: 'Groups', style: 'margin-top:22px' }), groupList, addGroup, h('h2', { text: 'Data', style: 'margin-top:22px' }),
-    h('p', { class: 'muted', text: 'Deleting this page deletes every ask in it. Keep a backup.' }), data);
+    h('p', { class: 'muted', text: 'Deleting this page deletes every ask in it. Keep a backup.' }), data,
+    h('h2', { text: 'Page', style: 'margin-top:22px' }), pageInfo);
   return wrap;
 }
 async function exportAll() {

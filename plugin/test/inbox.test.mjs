@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildAsk, buildReply, buildStatus, buildEdit, scanText, digest, formatDigest, isOverdue, statusWord, unwrap, newCode, timeId, TEMPLATES, KINDS } from '../bin/inbox.mjs';
+import { buildAsk, buildReply, buildStatus, buildEdit, scanText, digest, formatDigest, isOverdue, statusWord, unwrap, newCode, timeId, TEMPLATES, KINDS, pageVersion, compareVersions, pageUpdate, PAGE_FILE } from '../bin/inbox.mjs';
 
 const CLI = fileURLToPath(new URL('../bin/inbox.mjs', import.meta.url));
 const MIKUL = 'u_mikul0000000000000000a';
@@ -377,4 +377,44 @@ test('CLI: prepare-status passes --note and --reason for to-dos', () => {
   const dec = run('--action', 'decline', '--reason', 'Wrong team.');
   assert.equal(dec.statusAfter, 'declined');
   assert.equal(execFileSync('node', [CLI, 'template', '--kind', 'todo'], { encoding: 'utf8' }).trim(), TEMPLATES.todo);
+});
+
+// ---------------------------------------------------------------- v1.3: page updates
+
+test('page version: read from the template meta tag, compared numerically, never downgraded', () => {
+  const v = pageVersion(readFileSync(PAGE_FILE, 'utf8'));
+  assert.match(v, /^\d+\.\d+\.\d+$/, 'the shipped page carries a team-inbox-version meta tag');
+  assert.equal(pageVersion('<title>x</title>'), null);
+  assert.equal(compareVersions('1.10.0', '1.9.3'), 1, 'numeric, not string, comparison');
+  assert.equal(compareVersions('1.3.0', '1.3.0'), 0);
+  assert.equal(compareVersions(null, '0.0.1'), -1, 'an unrecorded version is older than any real one');
+  assert.equal(pageUpdate(null, '1.3.0'), 'needed');
+  assert.equal(pageUpdate('1.2.0', '1.3.0'), 'needed');
+  assert.equal(pageUpdate('1.3.0', '1.3.0'), 'none');
+  assert.equal(pageUpdate('2.0.0', '1.3.0'), 'plugin-older');
+});
+
+test('CLI: page-version reports the template and the capabilities file, which setup and update-page publish', () => {
+  const out = JSON.parse(execFileSync('node', [CLI, 'page-version', '--current', '1.2.0'], { encoding: 'utf8' }));
+  assert.equal(out.template, pageVersion(readFileSync(PAGE_FILE, 'utf8')));
+  assert.equal(out.update, 'needed');
+  const caps = JSON.parse(readFileSync(out.capabilities, 'utf8'));
+  assert.deepEqual(Object.keys(caps).sort(), ['assets', 'db', 'downloads', 'user']);
+  assert.ok(caps.db.rules.some((r) => r.path === 'members/{self}' && r.write === 'interact'), 'members can write their own row');
+  assert.ok(caps.db.rules.some((r) => r.path === 'config' && r.write === 'admin'), 'only owners and editors change settings');
+  assert.equal(JSON.parse(execFileSync('node', [CLI, 'page-version'], { encoding: 'utf8' })).update, 'needed');
+});
+
+test('digest: page_update appears when config/app records an older or no page version, and only then', () => {
+  const store = mkdtempSync(join(tmpdir(), 'team-inbox-v13-'));
+  const template = pageVersion(readFileSync(PAGE_FILE, 'utf8'));
+  const run = () => execFileSync('node', [CLI, 'digest', '--dir', store, '--me', PRIYA, '--groups', ''], { encoding: 'utf8' });
+  assert.doesNotMatch(run(), /page_update/, 'no config read, nothing to compare');
+  mkdirSync(join(store, 'config'));
+  writeFileSync(join(store, 'config', 'app.json'), JSON.stringify({ id: 'app', version: 3, data: { blockerHours: 24 } }));
+  assert.ok(run().includes(`page_update: the inbox page is unrecorded, this plugin has ${template};`), 'a store from before 1.3.0 is told to update');
+  writeFileSync(join(store, 'config', 'app.json'), JSON.stringify({ pageVersion: template }));
+  assert.doesNotMatch(run(), /page_update/);
+  writeFileSync(join(store, 'config', 'app.json'), JSON.stringify({ pageVersion: '99.0.0' }));
+  assert.doesNotMatch(run(), /page_update/, 'a newer page is not something a member can fix');
 });

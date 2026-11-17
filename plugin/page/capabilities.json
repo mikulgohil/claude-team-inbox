@@ -1,0 +1,6 @@
+{"db": {"rules": [
+  {"path": "config", "read": "view", "write": "admin"},
+  {"path": "groups", "read": "view", "write": "admin"},
+  {"path": "members", "read": "view", "write": "admin"},
+  {"path": "members/{self}", "read": "view", "write": "interact"}
+]}, "user": {"scopes": ["profile"]}, "assets": {"upload": "interact"}, "downloads": true}
